@@ -32,6 +32,8 @@ channels_of_interest = [0, 1]                                                   
 lipid_channel = 2                                                                                                       # Enter the lipid channel (zero_indexing) for GUV recognition purposes
 series_type = Z_Stack_Series
 verbose = True
+puncta_pixel_threshold = None
+
 
 # Not in use
 old_punctate = False
@@ -53,7 +55,7 @@ for folder in folder_list:
 result = None
 folder_index_count = 0
 for path in path_list:
-  result, folder_index_count = process_data(path, folder_index_count, result, num_bins, channels_of_interest, lipid_channel, series_type, puncta_model, old_punctate, frame_punctate, verbose)
+  result, folder_index_count = process_data(path, folder_index_count, result, num_bins, channels_of_interest, lipid_channel, series_type, puncta_model, old_punctate, frame_punctate, verbose, puncta_pixel_threshold)
 
 # saves data as a .csv file
 result.to_csv(path_or_buf=f"{save_path}.csv", sep=",", index=False)

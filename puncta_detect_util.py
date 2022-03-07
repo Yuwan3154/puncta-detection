@@ -69,7 +69,7 @@ def identify_img(imfolder, yolo_model_path, thresh=0.8):
         except subprocess.CalledProcessError as e:
             print(e.output.decode('UTF-8'))
 
-def process_data(imfolder, folder_index_count, result, num_bins, chs_of_interest, lipid_ch, series_type, puncta_model, old_punctate, frame_punctate, verbose):
+def process_data(imfolder, folder_index_count, result, num_bins, chs_of_interest, lipid_ch, series_type, puncta_model, old_punctate, frame_punctate, verbose, puncta_pixel_threshold):
     file_list = []
     # folder_num = imfolder.split("\\")[-1]
     if not imfolder.endswith(os.path.sep):
@@ -99,7 +99,7 @@ def process_data(imfolder, folder_index_count, result, num_bins, chs_of_interest
             label_folder = ".\\yolov5\\runs\\detect\\exp{}".format(folder_index(folder_index_count))
             # defines local maxima in the lipid channel
             num_frame = len(lipid)
-            cur_series = series_type(ch, lipid, imfolder, fname, puncta_model, num_bins, num_frame, old_punctate, frame_punctate)
+            cur_series = series_type(ch, lipid, imfolder, fname, puncta_model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold)
             for j in range(num_frame):
                 label_fname = os.path.join(label_folder, "labels\\{}.txt".format(j))
                 try:
@@ -147,9 +147,7 @@ def process_data(imfolder, folder_index_count, result, num_bins, chs_of_interest
     result = square_quality(result)
     return result, folder_index_count
 
-def print_result(result):
-    print("Starting on output file", result_csv_file)
-
+def print_result(result, channels_of_interest):
     print("2-channel colocalization")
     # 2-channel colocalization
     for folder in np.unique(result["folder"]):
@@ -370,7 +368,7 @@ class Guv:
     A class storing the positional information of a GUV across time series.
     """
 
-    def __init__(self, first_xywh, initial_frame, folder, fname, img_sz, model, num_bins, old_punctate, frame_punctate):
+    def __init__(self, first_xywh, initial_frame, folder, fname, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_treshold):
         self.xs, self.ys, self.ws, self.hs = [], [], [], []
         self.values = []
         self.candidate = first_xywh
@@ -385,6 +383,7 @@ class Guv:
         self.puncta_param = []
         self.old_punctate = old_punctate
         self.frame_punctate = frame_punctate
+        self.puncta_pixel_treshold = puncta_pixel_treshold
 
     def update_pos(self, xywh):
         self.x = xywh[0]
@@ -460,8 +459,8 @@ class Guv:
 
 class Z_Stack_Guv(Guv):
 
-    def __init__(self, first_xywh, initial_frame, folder, fname, img_sz, model, num_bins, old_punctate, frame_punctate):
-        Guv.__init__(self, first_xywh, initial_frame, folder, fname, img_sz, model, num_bins, old_punctate, frame_punctate)
+    def __init__(self, first_xywh, initial_frame, folder, fname, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_treshold):
+        Guv.__init__(self, first_xywh, initial_frame, folder, fname, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_treshold)
         self.equa_frame = None
         self.equa_size = 0
 
@@ -496,7 +495,7 @@ class Z_Stack_Guv(Guv):
 class Series:
     """A class storing the GUVs from the same series."""
 
-    def __init__(self, ch, lipid, folder, fname, model, num_bins, num_frame, old_punctate, frame_punctate):
+    def __init__(self, ch, lipid, folder, fname, model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold):
         self.guv_lst = []
         self.frame = 0
         self.ch = ch
@@ -509,6 +508,7 @@ class Series:
         self.num_frame = num_frame
         self.old_punctate = old_punctate
         self.frame_punctate = frame_punctate
+        self.puncta_pixel_treshold
 
     def process_frame(self, guvs):
         add_lst = self.match_all(guvs)
@@ -519,11 +519,11 @@ class Series:
     def add_value_all(self):
         for guv in self.guv_lst:
             ch = self.ch[self.frame, :, :]
-            ch_mask = preprocess_for_puncta(ch[:, :])
+            ch_mask = preprocess_for_puncta(ch[:, :], self.puncta_pixel_treshold)
             guv.add_value(ch_mask, ch, self.lipid, self.frame)
         self.frame += 1
 
-    def match_all(self, guvs, num_trial=10):
+    def match_all(self, guvs, num_trial=5):
         best_add_lst = None
         best_match_dic = None
         best_score = -1
@@ -542,7 +542,7 @@ class Series:
                 if best_match is None:
                     cur_add_lst.append(
                         Guv(xywh, self.frame, self.folder, self.fname, self.img_sz, self.model, self.num_bins,
-                            self.old_punctate))
+                            self.old_punctate, self.puncta_pixel_treshold))
                 elif cur_match_dic.get(best_match, None) is None:
                     cur_match_dic[best_match] = xywh
                     cur_score += best_match.distance_to_coord(xywh)
@@ -575,11 +575,11 @@ class Series:
 
 class Z_Stack_Series(Series):
 
-    def __init__(self, ch, lipid, folder, fname, model, num_bins, num_frame, old_punctate, frame_punctate):
-        Series.__init__(self, ch, lipid, folder, fname, model, num_bins, num_frame, old_punctate, frame_punctate)
-        self.dist_thresh = 4
+    def __init__(self, ch, lipid, folder, fname, model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold):
+        Series.__init__(self, ch, lipid, folder, fname, model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold)
+        self.dist_thresh = 10
 
-    def match_all(self, guvs, num_trial=10):
+    def match_all(self, guvs, num_trial=5):
         best_add_lst = None
         best_match_dic = None
         best_score = float("inf")
@@ -599,7 +599,7 @@ class Z_Stack_Series(Series):
                 if best_match is None:
                     cur_add_lst.append(
                         Z_Stack_Guv(xywh, self.frame, self.folder, self.fname, self.img_sz, self.model, self.num_bins,
-                                    self.old_punctate, self.frame_punctate))
+                                    self.old_punctate, self.frame_punctate, self.puncta_pixel_treshold))
                 elif cur_match_dic.get(best_match, None) is None:
                     cur_match_dic[best_match] = xywh
                     cur_score += best_match.distance_to_coord(xywh)
@@ -740,7 +740,7 @@ def pair_points(group1, group2, threshold):
                 results.append(pair_points(new_group1[:], new_group2, threshold))
     return max(results)
 
-def preprocess_for_puncta(img):
+def preprocess_for_puncta(img, theshold):
     """
     Convert the given 2D image into a preprocessed image for puncta
     identification.
@@ -752,7 +752,10 @@ def preprocess_for_puncta(img):
     img = cv.GaussianBlur(img, (3, 3), 0)
     img_shape = img.shape
     img = normalize(np.array([np.ravel(img)])).reshape(img_shape)
-    img = img > 1.2 * threshold_otsu(img)
+    if thresold is None:
+        img = img > 1.2 * threshold_otsu(img)
+    else:
+        img = img > threshold
     return img
 
 # Manual Colocalization

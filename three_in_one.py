@@ -26,6 +26,7 @@ warnings.filterwarnings('ignore')
 print('Setup complete. Using torch %s %s' % (torch.__version__, torch.cuda.get_device_properties(0) if torch.cuda.is_available() else 'CPU'))
 
 detection_threshold = 0.6                                                                                               # The cutoff to ignore GUVs that the GUV detection algorithm is less confident about
+puncta_pixel_threshold = None
 folder_list = [".\\data\\03-02-2022\\49.5_ DOPC_50_ DOPS_0.5_ Atto 647\\200 nM Atto 488 ALG-2",
                ".\\data\\03-02-2022\\69.5_ DOPC_30_ DOPS_0.5_ Atto 647\\200 nM Atto 488 ALG-2"]                         # Data folder(s); list all folders cotaining .tif images to be analyzed
 label = "03_05_22_product_coloc_1.2otsu_area5_puncta_size5_1.35otsu_region_coloc"                                       # Name your output here
@@ -68,7 +69,7 @@ for path in path_list:
 result = None
 folder_index_count = 0
 for path in path_list:
-  result, folder_index_count = process_data(path, folder_index_count, result, num_bins, channels_of_interest, lipid_channel, series_type, puncta_model, old_punctate, frame_punctate, verbose)
+  result, folder_index_count = process_data(path, folder_index_count, result, num_bins, channels_of_interest, lipid_channel, series_type, puncta_model, old_punctate, frame_punctate, verbose, puncta_pixel_threshold)
 
 # saves data as a .csv file
 result.to_csv(path_or_buf=f"{save_path}.csv", sep=",", index=False)
