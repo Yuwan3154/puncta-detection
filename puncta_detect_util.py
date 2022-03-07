@@ -673,19 +673,29 @@ def new_punctate(df, ch):
     """
     Given a signal DataFrame with puncta feature for the designated
     channel ch, an integer, create a new column that is True for
-    rows that have more than 3 frames with identified puncta, and
+    rows that have more than x frames with identified puncta, and
     False otherwise.
     """
     result = []
     for i in range(len(df)):
-        cur_num_punctate = 0
+        cur_punctate = False
         for j in range(df.iloc[i]["num frame"]):
             if df.iloc[i][f"puncta {j} ch{ch}"][0] > 0:
-                cur_num_punctate += 1
-        result.append(cur_num_punctate)
-    result = np.array(result)
-    df[f"new punctate ch{ch}"] = (result >= 1)
+                cur_punctate = True
+                break
+        result.append(cur_punctate)
+    df[f"new punctate ch{ch}"] = result
     return df
+#     result = []
+#     for i in range(len(df)):
+#         cur_num_punctate = 0
+#         for j in range(df.iloc[i]["num frame"]):
+#             if df.iloc[i][f"puncta {j} ch{ch}"][0] > 0:
+#                 cur_num_punctate += 1
+#         result.append(cur_num_punctate)
+#     result = np.array(result)
+#     df[f"new punctate ch{ch}"] = (result >= 1)
+#     return df
 
 def colocalization(df, chs):
     """
