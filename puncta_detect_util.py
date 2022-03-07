@@ -368,7 +368,7 @@ class Guv:
     A class storing the positional information of a GUV across time series.
     """
 
-    def __init__(self, first_xywh, initial_frame, folder, fname, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_treshold):
+    def __init__(self, first_xywh, initial_frame, folder, fname, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_threshold):
         self.xs, self.ys, self.ws, self.hs = [], [], [], []
         self.values = []
         self.candidate = first_xywh
@@ -383,7 +383,7 @@ class Guv:
         self.puncta_param = []
         self.old_punctate = old_punctate
         self.frame_punctate = frame_punctate
-        self.puncta_pixel_treshold = puncta_pixel_treshold
+        self.puncta_pixel_threshold = puncta_pixel_threshold
 
     def update_pos(self, xywh):
         self.x = xywh[0]
@@ -459,8 +459,8 @@ class Guv:
 
 class Z_Stack_Guv(Guv):
 
-    def __init__(self, first_xywh, initial_frame, folder, fname, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_treshold):
-        Guv.__init__(self, first_xywh, initial_frame, folder, fname, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_treshold)
+    def __init__(self, first_xywh, initial_frame, folder, fname, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_threshold):
+        Guv.__init__(self, first_xywh, initial_frame, folder, fname, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_threshold)
         self.equa_frame = None
         self.equa_size = 0
 
@@ -508,7 +508,7 @@ class Series:
         self.num_frame = num_frame
         self.old_punctate = old_punctate
         self.frame_punctate = frame_punctate
-        self.puncta_pixel_treshold
+        self.puncta_pixel_threshold = puncta_pixel_threshold
 
     def process_frame(self, guvs):
         add_lst = self.match_all(guvs)
@@ -519,7 +519,7 @@ class Series:
     def add_value_all(self):
         for guv in self.guv_lst:
             ch = self.ch[self.frame, :, :]
-            ch_mask = preprocess_for_puncta(ch[:, :], self.puncta_pixel_treshold)
+            ch_mask = preprocess_for_puncta(ch[:, :], self.puncta_pixel_threshold)
             guv.add_value(ch_mask, ch, self.lipid, self.frame)
         self.frame += 1
 
@@ -542,7 +542,7 @@ class Series:
                 if best_match is None:
                     cur_add_lst.append(
                         Guv(xywh, self.frame, self.folder, self.fname, self.img_sz, self.model, self.num_bins,
-                            self.old_punctate, self.puncta_pixel_treshold))
+                            self.old_punctate, self.puncta_pixel_threshold))
                 elif cur_match_dic.get(best_match, None) is None:
                     cur_match_dic[best_match] = xywh
                     cur_score += best_match.distance_to_coord(xywh)
@@ -599,7 +599,7 @@ class Z_Stack_Series(Series):
                 if best_match is None:
                     cur_add_lst.append(
                         Z_Stack_Guv(xywh, self.frame, self.folder, self.fname, self.img_sz, self.model, self.num_bins,
-                                    self.old_punctate, self.frame_punctate, self.puncta_pixel_treshold))
+                                    self.old_punctate, self.frame_punctate, self.puncta_pixel_threshold))
                 elif cur_match_dic.get(best_match, None) is None:
                     cur_match_dic[best_match] = xywh
                     cur_score += best_match.distance_to_coord(xywh)
