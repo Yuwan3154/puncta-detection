@@ -745,16 +745,20 @@ def preprocess_for_puncta(img, theshold):
     Convert the given 2D image into a preprocessed image for puncta
     identification.
     """
-    io.imsave("temp.tif", img)
-    img = cv.imread("temp.tif", 0)
-    os.remove("temp.tif")
-    img = cv.fastNlMeansDenoising(img, h=3)
-    img = cv.GaussianBlur(img, (3, 3), 0)
-    img_shape = img.shape
-    img = normalize(np.array([np.ravel(img)])).reshape(img_shape)
     if thresold is None:
+        io.imsave("temp.tif", img)
+        img = cv.imread("temp.tif", 0)
+        os.remove("temp.tif")
+        img = cv.fastNlMeansDenoising(img, h=3)
+        img = cv.GaussianBlur(img, (3, 3), 0)
+        img_shape = img.shape
+        img = normalize(np.array([np.ravel(img)])).reshape(img_shape)
         img = img > 1.2 * threshold_otsu(img)
     else:
+        io.imsave("temp.tif", img)
+        img = cv.imread("temp.tif", 0)
+        os.remove("temp.tif")
+        img = cv.fastNlMeansDenoising(img, h=3)
         img = img > threshold
     return img
 
