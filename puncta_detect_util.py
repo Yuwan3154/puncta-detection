@@ -161,9 +161,7 @@ def get_coord(xywh, img_sz=None):
     x, y, half_w, half_h = xywh[0], xywh[1], xywh[2] / 2, xywh[3] / 2
     x1, y1, x2, y2 = x - half_w, y - half_h, x + half_w, y + half_h
     if img_sz is not None:
-        return max(0, round(x1 * img_sz)), min(img_sz, round(x2 * img_sz)), max(0, round(y1 * img_sz)), min(img_sz,
-                                                                                                            round(
-                                                                                                                y2 * img_sz))
+        return max(0, round(x1 * img_sz)), min(img_sz, round(x2 * img_sz)), max(0, round(y1 * img_sz)), min(img_sz,round(y2 * img_sz))
     else:
         return int(x1), int(x2), int(y1), int(y2)
 
@@ -362,7 +360,7 @@ class Guv:
     def get_values(self):
         value_empty = [np.nan for _ in range(self.init_f)]
         position_empty = [np.nan for _ in range(self.init_f)]
-        puncta_param_empty = [[0, 0, []] for _ in range(self.init_f)]
+        puncta_param_empty = [[0, [], []] for _ in range(self.init_f)]
         return [self.folder, self.fname, self.img_sz, self.get_averaged_punctateness(), self.adj,
                 self.init_f] + value_empty + self.values + puncta_param_empty + self.puncta_param + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
 
@@ -422,7 +420,7 @@ class Z_Stack_Guv(Guv):
     def get_values(self):
         value_empty = [np.nan for _ in range(self.init_f)]
         position_empty = [np.nan for _ in range(self.init_f)]
-        puncta_param_empty = [[0, 0, []] for _ in range(self.init_f)]
+        puncta_param_empty = [[0, [], []] for _ in range(self.init_f)]
         return [self.folder, self.fname, self.img_sz, self.get_averaged_punctateness(), self.adj, self.init_f,
                 self.equa_frame,
                 self.equa_size] + value_empty + self.values + puncta_param_empty + self.puncta_param + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
@@ -780,27 +778,26 @@ def new_colocalization(df, im, chs):
                     else:
                         all_ch_img = im
                     for ch1, ch2 in itertools.combinations(chs, 2):
-                        processed_ch_img1, processed_ch_img2 = preprocess_for_coloc(
-                            all_ch_img[:, :, ch1]), preprocess_for_coloc(all_ch_img[:, :, ch2])
+                        processed_ch_img1, processed_ch_img2 = preprocess_for_coloc(all_ch_img[:, :, ch1]), preprocess_for_coloc(all_ch_img[:, :, ch2])
                         coloc_img = processed_ch_img1 * processed_ch_img2
                         for i in range(len(cur_df)):
                             cur_GUV = cur_df.iloc[i]
-                            x1, x2, y1, y2 = get_coord(
-                                [cur_GUV[f"x {j}"], cur_GUV[f"y {j}"], cur_GUV[f"w {j}"], cur_GUV[f"h {j}"]],
-                                img_sz=img_sz)
-                            cur_GUV_img = coloc_img[y1:y2, x1:x2]
-                            base_ch = ch1 if cur_GUV[f"puncta {j} ch{ch1}"][0] > cur_GUV[f"puncta {j} ch{ch2}"][
-                                0] else ch2
-                            for bbox in cur_GUV[f"puncta {j} ch{base_ch}"][2]:
-                                b_y1, b_x1, b_y2, b_x2 = bbox
-                                labels = measure.label(cur_GUV_img[b_y1:b_y2+1, b_x1:b_x2+1])
-                                try:
-                                    for label_property in measure.regionprops(labels):
-                                        if label_property.area >= 5:
-                                            coloc_result[i] += 1
-                                            break
-                                except ValueError:
-                                    pass
+                            try:
+                                x1, x2, y1, y2 = get_coord([cur_GUV[f"x {j}"], cur_GUV[f"y {j}"], cur_GUV[f"w {j}"], cur_GUV[f"h {j}"]], img_sz=img_sz)
+                                cur_GUV_img = coloc_img[y1:y2, x1:x2]
+                                base_ch = ch1 if cur_GUV[f"puncta {j} ch{ch1}"][0] > cur_GUV[f"puncta {j} ch{ch2}"][0] else ch2
+                                for bbox in cur_GUV[f"puncta {j} ch{base_ch}"][2]:
+                                    b_y1, b_x1, b_y2, b_x2 = bbox
+                                    labels = measure.label(cur_GUV_img[b_y1:b_y2+1, b_x1:b_x2+1])
+                                    try:
+                                        for label_property in measure.regionprops(labels):
+                                            if label_property.area >= 5:
+                                                coloc_result[i] += 1
+                                                break
+                                    except ValueError:
+                                        pass
+                            except ValueError:
+                                pass
                 df.loc[cur_df.index, f"new colocalization ch{ch1} ch{ch2}"] = np.array(coloc_result) / np.array(df.loc[cur_df.index, f"colocalization weight ch{ch1} ch{ch2}"])
     return df
 
