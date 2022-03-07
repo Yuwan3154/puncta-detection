@@ -35,7 +35,7 @@ verbose = True
 
 # Not in use
 old_punctate = False
-puncta_model_path = "\\content\\drive\\MyDrive\\HurleyLab\\11_7_21_new_feat_wout_true_maxima_tiff_2_kmeans_cl_model.pkl"     # Designate your puncta model path here
+puncta_model_path = "\\content\\drive\\MyDrive\\HurleyLab\\11_7_21_new_feat_wout_true_maxima_tiff_2_kmeans_cl_model.pkl"# Designate your puncta model path here
 puncta_model = joblib.load(puncta_model_path) if old_punctate else None
 detection = False                                                                                                       # DON'T USE THIS! If True, then circle detection is used, which is an unfinished feature.
 ML = False
