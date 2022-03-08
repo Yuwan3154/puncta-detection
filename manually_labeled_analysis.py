@@ -61,7 +61,7 @@ for file_path in manual_label_df["file path"].unique():
   cur_df_puncta_cols, cur_df_puncta_frames, cur_puncta_nums = [], np.zeros(len(cur_df), dtype=int), np.zeros(len(cur_df), dtype=int)
   all_frame_img = io.imread(file_path)
   for j in range(cur_df["num frame"].iloc[0]):
-    if len(all_frame_img) == 4:
+    if len(all_frame_img.shape) == 4:
       all_ch_img = all_frame_img[j, :, :, :]
     else:
       all_ch_img = all_frame_img

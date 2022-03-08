@@ -893,7 +893,7 @@ def new_colocalization(df, im, chs):
                 cur_df = df[np.array(df["folder"] == folder) * np.array(df["file name"] == file_name)]
                 coloc_result = [0 for _ in range(len(cur_df))]
                 for j in range(cur_df["num frame"].iloc[0]):
-                    if len(im) == 4:
+                    if len(im.shape) == 4:
                         all_ch_img = im[j, :, :, :]
                     else:
                         all_ch_img = im
@@ -958,7 +958,7 @@ def new_manual_colocalization(df, chs):
             coloc_result = [0 for _ in range(len(cur_df))]
             im = io.imread(cur_df["file path"].iloc[0])
             for j in range(cur_df["num frame"].iloc[0]):
-                if len(im) == 4:
+                if len(im.shape) == 4:
                     all_ch_img = im[j, :, :, :]
                 else:
                     all_ch_img = im
@@ -992,7 +992,7 @@ def new_manual_colocalization(df, chs):
                 coloc_result = [0 for _ in range(len(cur_df))]
                 im = io.imread(cur_df["file path"].iloc[0])
                 for j in range(cur_df["num frame"].iloc[0]):
-                    if len(im) == 4:
+                    if len(im.shape) == 4:
                         all_ch_img = im[j, :, :, :]
                     else:
                         all_ch_img = im
