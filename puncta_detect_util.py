@@ -25,17 +25,15 @@ warnings.filterwarnings('ignore')
 
 def extract_image(imfolder, lipid_channel):
   file_list = []
-  if not imfolder.endswith(os.path.sep):
-    imfolder += os.path.sep
   for i in os.listdir(imfolder):
     if i.endswith(".tif"):
       file_list.append(i)
 
   for i in range(len(file_list)):
     fname = file_list[i]
-    fpath = imfolder + fname
+    fpath = join(imfolder, fname)
     series_name = fname[:-4]
-    series_folder = os.path.join(imfolder, series_name)
+    series_folder = join(imfolder, series_name)
     if not os.path.exists(series_folder):
       os.mkdir(series_folder)
     print(fname)
@@ -71,9 +69,6 @@ def identify_img(imfolder, yolo_model_path, thresh=0.8):
 
 def process_data(imfolder, folder_index_count, result, num_bins, chs_of_interest, lipid_ch, series_type, puncta_model, old_punctate, frame_punctate, verbose, puncta_pixel_threshold):
     file_list = []
-    # folder_num = imfolder.split("\\")[-1]
-    if not imfolder.endswith(os.path.sep):
-        imfolder += os.path.sep
     for f in os.listdir(imfolder):
         if f.endswith(".tif"):
             file_list.append(f)
@@ -750,12 +745,12 @@ def pair_points(group1, group2, threshold):
                 results.append(pair_points(new_group1[:], new_group2, threshold))
     return max(results)
 
-def preprocess_for_puncta(img, theshold):
+def preprocess_for_puncta(img, threshold):
     """
     Convert the given 2D image into a preprocessed image for puncta
     identification.
     """
-    if thresold is None:
+    if threshold is None:
         io.imsave("temp.tif", img)
         img = cv.imread("temp.tif", 0)
         os.remove("temp.tif")
