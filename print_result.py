@@ -5,7 +5,7 @@ import numpy as np
 
 channels_of_interest = [0, 1]
 result_files = []
-for file in os.listdir("."):
+for file in os.listdir("results"):
     if file.endswith(".csv"):
         result_files.append(file)
 

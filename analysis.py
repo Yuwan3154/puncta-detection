@@ -25,15 +25,16 @@ import warnings
 warnings.filterwarnings('ignore')
 
 folder_list = [".\\data\\03-02-2022\\49.5_ DOPC_50_ DOPS_0.5_ Atto 647\\200 nM Atto 488 ALG-2",
-               ".\\data\\03-02-2022\\69.5_ DOPC_30_ DOPS_0.5_ Atto 647\\200 nM Atto 488 ALG-2"]
-label = "03_05_22_product_coloc_1.2otsu_area5_puncta_size5_1.35otsu_region_coloc"                                            # Name your output here
-save_path = join(".", label)                                                                                            # Designate your save path here
+               ".\\data\\03-02-2022\\69.5_ DOPC_30_ DOPS_0.5_ Atto 647\\200 nM Atto 488 ALG-2",
+               ".\\data\\03-03-2022\\89.5_ DOPC_10_DOPS_0.5_ Atto\\200 nM Atto 488 ALG2"]                               # Data folder(s); list all folders cotaining .tif images to be analyzed
+label = "03_05_22_whole_dataset_1.1_otsu_50_30_10_DOPC_ALG-2"                                                           # Name your output here
+if not os.path.exists("results"):
+    os.mkdir("results")
+save_path = join("results", label)                                                                                      # Designate your save path here
 channels_of_interest = [0, 1]                                                                                           # Enter your protein channels (zero-indexing); if more than 1 channel is entered, result will also include colocalization analysis
 lipid_channel = 2                                                                                                       # Enter the lipid channel (zero_indexing) for GUV recognition purposes
 series_type = Z_Stack_Series
 verbose = True
-puncta_pixel_threshold = None
-
 
 # Not in use
 old_punctate = False
@@ -50,6 +51,11 @@ for folder in folder_list:
     for file in os.listdir(folder):
         if file.endswith(".nd2"):
             path_list.append(join(folder, file + "-output"))
+
+puncta_pixel_threshold = dict()
+for ch_of_interest in channels_of_interest:
+  puncta_pixel_threshold[ch_of_interest] = dataset_threshold(path_list, ch_of_interest)
+  print(puncta_pixel_threshold[ch_of_interest])
 
 # Analyze all GUVs
 result = None

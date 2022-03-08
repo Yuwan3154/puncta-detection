@@ -27,12 +27,13 @@ print('Setup complete. Using torch %s %s' % (torch.__version__, torch.cuda.get_d
 
 detection_threshold = 0.6                                                                                               # The cutoff to ignore GUVs that the GUV detection algorithm is less confident about
 folder_list = [".\\data\\03-02-2022\\49.5_ DOPC_50_ DOPS_0.5_ Atto 647\\200 nM Atto 488 ALG-2",
-               ".\\data\\03-02-2022\\69.5_ DOPC_30_ DOPS_0.5_ Atto 647\\200 nM Atto 488 ALG-2"]
+               ".\\data\\03-02-2022\\69.5_ DOPC_30_ DOPS_0.5_ Atto 647\\200 nM Atto 488 ALG-2",
+               ".\\data\\03-03-2022\\89.5_ DOPC_10_DOPS_0.5_ Atto\\200 nM Atto 488 ALG2"]                               # Data folder(s); list all folders cotaining .tif images to be analyzed
     # [".\data\10_DOPS 89.5_DOPC 0.5_Atto\200nM ALG2",
     #          ".\data\30_DOPS 69.5_ DOPC 0.5 _Atto\200nM ALG2 A78C",
     #          ".\data\30_DOPS 69.5_ DOPC 0.5 _Atto\200nM ALG2 A78C ESCRT1",
     #          ".\data\50_DOPS 49.5_ DOPC 0.5_Atto\200nM ALG2"]                                                         # Data folder(s); list all folders cotaining .tif images to be analyzed
-yolo_model_path = ".\\06062021_best.pt"                                                                                 # Designate your yolo model path here
+yolo_model_path = "06062021_best.pt"                                                                                    # Designate your yolo model path here
 lipid_channel = 2                                                                                                       # Enter the lipid channel (zero_indexing) for GUV recognition purposes
 series_type = Z_Stack_Series
 

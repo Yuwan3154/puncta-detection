@@ -94,7 +94,7 @@ def process_data(imfolder, folder_index_count, result, num_bins, chs_of_interest
             label_folder = ".\\yolov5\\runs\\detect\\exp{}".format(folder_index(folder_index_count))
             # defines local maxima in the lipid channel
             num_frame = len(lipid)
-            cur_series = series_type(ch, lipid, imfolder, fname, puncta_model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold)
+            cur_series = series_type(ch, lipid, imfolder, fname, puncta_model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold[ch_of_interest])
             for j in range(num_frame):
                 label_fname = os.path.join(label_folder, "labels\\{}.txt".format(j))
                 try:
@@ -760,10 +760,6 @@ def preprocess_for_puncta(img, threshold):
         img = normalize(np.array([np.ravel(img)])).reshape(img_shape)
         img = img > 1.2 * threshold_otsu(img)
     else:
-        io.imsave("temp.tif", img)
-        img = cv.imread("temp.tif", 0)
-        os.remove("temp.tif")
-        img = cv.fastNlMeansDenoising(img, h=3)
         img = img > threshold
     return img
 
@@ -869,13 +865,10 @@ def new_colocalization(df, im, chs):
                                 for bbox in cur_GUV[f"puncta {j} ch{base_ch}"][2]:
                                     b_y1, b_x1, b_y2, b_x2 = bbox
                                     labels = measure.label(cur_GUV_img[b_y1:b_y2+1, b_x1:b_x2+1])
-                                    try:
-                                        for label_property in measure.regionprops(labels):
-                                            if label_property.area >= 5:
-                                                coloc_result[i] += 1
-                                                break
-                                    except ValueError:
-                                        pass
+                                    for label_property in measure.regionprops(labels):
+                                        if label_property.area >= 5:
+                                            coloc_result[i] += 1
+                                            break
                             except ValueError:
                                 pass
                 df.loc[cur_df.index, f"new colocalization ch{ch1} ch{ch2}"] = np.array(coloc_result) / np.array(df.loc[cur_df.index, f"colocalization weight ch{ch1} ch{ch2}"])
@@ -976,3 +969,28 @@ def new_manual_colocalization(df, chs):
                                     break
                 df.loc[cur_df.index, f"new colocalization ch{ch1} ch{ch2} ch{ch3}"] = np.array(coloc_result) / np.array(df.loc[cur_df.index, f"colocalization weight ch{ch1} ch{ch2} ch{ch3}"])
     return df
+
+def dataset_threshold(path_list, ch_of_interest):
+    all_picture = None
+    for imfolder in path_list:
+        file_list = []
+        for f in os.listdir(imfolder):
+            if f.endswith(".tif"):
+                file_list.append(f)
+        for i in range(len(file_list)):
+            fname = file_list[i]
+            fpath = join(imfolder, fname)
+            im = io.imread(fpath)
+            if len(im.shape) == 4:
+                ch = np.array(im[:, :, :, ch_of_interest])
+            elif len(im.shape) == 3:
+                ch = np.array(im[:, :, ch_of_interest]).reshape(1, im.shape[0], im.shape[1])
+            else:
+                raise ValueError("Input image should have 3 or 4 channels.")
+
+            for j in range(len(ch)):
+                if all_picture is None:
+                    all_picture = ch[j, :, :]
+                else:
+                    all_picture = np.concatenate((all_picture, ch[j, :, :]), axis=0)
+    return 1.2 * threshold_otsu(all_picture)
