@@ -7,7 +7,7 @@ channels_of_interest = [0, 1]
 result_files = []
 for file in os.listdir("results"):
     if file.endswith(".csv"):
-        result_files.append(file)
+        result_files.append(os.path.join("results", file))
 
 for result_csv_file in result_files:
     print("Starting on output file", result_csv_file)

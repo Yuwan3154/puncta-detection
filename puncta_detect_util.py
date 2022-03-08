@@ -5,7 +5,7 @@ import math
 import itertools
 from scipy.signal import correlate2d
 from skimage import io
-from skimage.filters import threshold_otsu, median, gaussian
+from skimage.filters import threshold_otsu, threshold_li, median, gaussian
 from skimage.morphology import disk
 from skimage import measure
 from imutils import contours, grab_contours
@@ -179,7 +179,7 @@ def print_result(result, channels_of_interest):
             f"The percent new colocalization for {folder} between channels {ch1} and {ch2} is {np.mean(cur_folder_result)}.")
         print()
 
-    # channel punctateness
+    # # channel punctateness
     # for folder in np.unique(result["folder"]):
     #   cur_folder_result = [[] for _ in range(len(channels_of_interest))]
     #   for file_name in np.unique((result[result["folder"] == folder])["file name"]):
@@ -194,7 +194,7 @@ def print_result(result, channels_of_interest):
     #     print(f"The percent punctateness for {folder} in channel {ch} is {np.mean(cur_folder_result[ch])}.")
     #     print()
     print("channel punctateness")
-    result["temp folder"] = list(map(lambda f: "/".join(f.split("/")[:-2]), result["folder"]))
+    result["temp folder"] = list(map(lambda f: "\\".join(f.split("\\")[:-2]), result["folder"]))
     for temp_folder in np.unique(result["temp folder"]):
         cur_folder_df = result[result["temp folder"] == temp_folder]
         for ch in channels_of_interest:
@@ -993,4 +993,4 @@ def dataset_threshold(path_list, ch_of_interest):
                     all_picture = ch[j, :, :]
                 else:
                     all_picture = np.concatenate((all_picture, ch[j, :, :]), axis=0)
-    return 1.2 * threshold_otsu(all_picture)
+    return 2.5 * threshold_li(all_picture)

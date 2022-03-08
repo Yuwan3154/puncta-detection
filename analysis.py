@@ -27,7 +27,7 @@ warnings.filterwarnings('ignore')
 folder_list = [".\\data\\03-02-2022\\49.5_ DOPC_50_ DOPS_0.5_ Atto 647\\200 nM Atto 488 ALG-2",
                ".\\data\\03-02-2022\\69.5_ DOPC_30_ DOPS_0.5_ Atto 647\\200 nM Atto 488 ALG-2",
                ".\\data\\03-03-2022\\89.5_ DOPC_10_DOPS_0.5_ Atto\\200 nM Atto 488 ALG2"]                               # Data folder(s); list all folders cotaining .tif images to be analyzed
-label = "03_05_22_whole_dataset_1.1_otsu_50_30_10_DOPC_ALG-2"                                                           # Name your output here
+label = "03_05_22_whole_dataset_2.5_li_50_30_10_DOPC_ALG-2"                                                             # Name your output here
 if not os.path.exists("results"):
     os.mkdir("results")
 save_path = join("results", label)                                                                                      # Designate your save path here
