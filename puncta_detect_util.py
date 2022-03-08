@@ -143,69 +143,69 @@ def process_data(imfolder, folder_index_count, result, num_bins, chs_of_interest
     return result, folder_index_count
 
 def print_result(result, channels_of_interest):
-    print("2-channel colocalization")
-    # 2-channel colocalization
-    for folder in np.unique(result["folder"]):
-        cur_folder_result = []
-        for file_name in np.unique((result[result["folder"] == folder])["file name"]):
-            cur_file_df = result[np.array(result["folder"] == folder) * np.array(result["file name"] == file_name)]
-            for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
-                cur_chs_df = cur_file_df[np.array(cur_file_df["square quality"])]
-                cur_chs_df = cur_chs_df[cur_chs_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()]
-                cur_percent = np.mean(cur_chs_df[f"colocalization ch{ch1} ch{ch2}"])
-                cur_folder_result.extend([cur_percent] * len(cur_chs_df))
-                print(
-                    f"The percent colocalization for {folder}{file_name} between channels {ch1} and {ch2} is {cur_percent}.")
-        print()
-        print(
-            f"The percent colocalization for {folder} between channels {ch1} and {ch2} is {np.mean(cur_folder_result)}.")
-        print()
-
-    print("2-channel new colocalization")
-    # 2-channel new colocalization
-    for folder in np.unique(result["folder"]):
-        cur_folder_result = []
-        for file_name in np.unique((result[result["folder"] == folder])["file name"]):
-            cur_file_df = result[np.array(result["folder"] == folder) * np.array(result["file name"] == file_name)]
-            for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
-                cur_chs_df = cur_file_df[np.array(cur_file_df["square quality"])]
-                cur_chs_df = cur_chs_df[cur_chs_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()]
-                cur_percent = np.mean(cur_chs_df[f"new colocalization ch{ch1} ch{ch2}"])
-                cur_folder_result.extend([cur_percent] * len(cur_chs_df))
-                print(
-                    f"The percent new colocalization for {folder}{file_name} between channels {ch1} and {ch2} is {cur_percent}.")
-        print()
-        print(
-            f"The percent new colocalization for {folder} between channels {ch1} and {ch2} is {np.mean(cur_folder_result)}.")
-        print()
-
-    # # channel punctateness
+    # print("2-channel colocalization")
+    # # 2-channel colocalization
     # for folder in np.unique(result["folder"]):
-    #   cur_folder_result = [[] for _ in range(len(channels_of_interest))]
-    #   for file_name in np.unique((result[result["folder"] == folder])["file name"]):
-    #     cur_file_df = result[np.array(result["folder"] == folder) * np.array(result["file name"] == file_name)]
-    #     cur_file_df = cur_file_df[np.array(cur_file_df["square quality"])]
-    #     for ch in channels_of_interest:
-    #       cur_percent = np.mean(cur_file_df[f"new punctate ch{ch}"])
-    #       cur_folder_result[ch].extend([cur_percent] * len(cur_file_df))
-    #       print(f"The percent punctateness for {folder}{file_name} in channel {ch} is {cur_percent}.")
-    #   for ch in channels_of_interest:
+    #     cur_folder_result = []
+    #     for file_name in np.unique((result[result["folder"] == folder])["file name"]):
+    #         cur_file_df = result[np.array(result["folder"] == folder) * np.array(result["file name"] == file_name)]
+    #         for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
+    #             cur_chs_df = cur_file_df[np.array(cur_file_df["square quality"])]
+    #             cur_chs_df = cur_chs_df[cur_chs_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()]
+    #             cur_percent = np.mean(cur_chs_df[f"colocalization ch{ch1} ch{ch2}"])
+    #             cur_folder_result.extend([cur_percent] * len(cur_chs_df))
+    #             print(
+    #                 f"The percent colocalization for {folder}{file_name} between channels {ch1} and {ch2} is {cur_percent}.")
     #     print()
-    #     print(f"The percent punctateness for {folder} in channel {ch} is {np.mean(cur_folder_result[ch])}.")
+    #     print(
+    #         f"The percent colocalization for {folder} between channels {ch1} and {ch2} is {np.mean(cur_folder_result)}.")
     #     print()
+    #
+    # print("2-channel new colocalization")
+    # # 2-channel new colocalization
+    # for folder in np.unique(result["folder"]):
+    #     cur_folder_result = []
+    #     for file_name in np.unique((result[result["folder"] == folder])["file name"]):
+    #         cur_file_df = result[np.array(result["folder"] == folder) * np.array(result["file name"] == file_name)]
+    #         for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
+    #             cur_chs_df = cur_file_df[np.array(cur_file_df["square quality"])]
+    #             cur_chs_df = cur_chs_df[cur_chs_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()]
+    #             cur_percent = np.mean(cur_chs_df[f"new colocalization ch{ch1} ch{ch2}"])
+    #             cur_folder_result.extend([cur_percent] * len(cur_chs_df))
+    #             print(
+    #                 f"The percent new colocalization for {folder}{file_name} between channels {ch1} and {ch2} is {cur_percent}.")
+    #     print()
+    #     print(
+    #         f"The percent new colocalization for {folder} between channels {ch1} and {ch2} is {np.mean(cur_folder_result)}.")
+    #     print()
+
+    # channel punctateness
+    for folder in np.unique(result["folder"]):
+      cur_folder_result = [[] for _ in range(len(channels_of_interest))]
+      for file_name in np.unique((result[result["folder"] == folder])["file name"]):
+        cur_file_df = result[np.array(result["folder"] == folder) * np.array(result["file name"] == file_name)]
+        cur_file_df = cur_file_df[np.array(cur_file_df["square quality"])]
+        for ch in channels_of_interest:
+          cur_percent = np.mean(cur_file_df[cur_file_df[f"quality ch{0}"]][f"new punctate ch{ch}"])
+          cur_folder_result[ch].extend([cur_percent] * len(cur_file_df))
+          print(f"The percent punctateness for {folder}{file_name} in channel {ch} is {cur_percent}.")
+      for ch in channels_of_interest:
+        print()
+        print(f"The percent punctateness for {folder} in channel {ch} is {np.mean(cur_folder_result[ch])}.")
+        print()
     print("channel punctateness")
     result["temp folder"] = list(map(lambda f: "\\".join(f.split("\\")[:-2]), result["folder"]))
     for temp_folder in np.unique(result["temp folder"]):
         cur_folder_df = result[result["temp folder"] == temp_folder]
         for ch in channels_of_interest:
             print()
-            ch_percent = np.mean(cur_folder_df[cur_folder_df["square quality"]][f"new punctate ch{ch}"])
+            ch_percent = np.mean(cur_folder_df[cur_folder_df["square quality"] * cur_folder_df[f"quality ch{ch}"]][f"new punctate ch{ch}"])
             print(f"The overall percent punctateness for {temp_folder} in channel {ch} is {ch_percent}.")
             print()
 
     for ch in channels_of_interest:
         print()
-        ch_percent = np.mean(result[result["square quality"]][f"new punctate ch{ch}"])
+        ch_percent = np.mean(result[result["square quality"] * result[f"quality ch{ch}"]][f"new punctate ch{ch}"])
         print(f"The overall percent punctateness in channel {ch} is {ch_percent}.")
         print()
 
