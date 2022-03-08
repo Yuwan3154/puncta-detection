@@ -78,4 +78,4 @@ for path in path_list:
 # saves data as a .csv file
 result.to_csv(path_or_buf=f"{save_path}.csv", sep=",", index=False)
 result.to_pickle(save_path)
-print_result(result)
+print_result(result, channels_of_interest)
