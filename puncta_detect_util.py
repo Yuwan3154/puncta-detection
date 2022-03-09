@@ -143,12 +143,17 @@ def process_data(imfolder, folder_index_count, result, num_bins, channels_of_int
     return result, folder_index_count
 
 def manual_process_data(manual_label_df, channels_of_interest):
-    if not os.path.exists("manual_results"):
-        os.mkdir("manual_results")
-
     puncta_pixel_threshold = dict()
     for ch_of_interest in channels_of_interest:
         puncta_pixel_threshold[ch_of_interest] = None
+
+    local_file_path = []
+    for file_path in manual_label_df["file path"]:
+        file_dir_decomp = file_path.split("/")
+        tif_file_name = file_dir_decomp[-1]
+        local_file_path.append("\\".join(
+            [".\\data", "\\".join(file_dir_decomp[5:8]), tif_file_name[:-4] + ".nd2-output", "(series 1).tif"]))
+    manual_label_df["file path"] = local_file_path
 
     manual_coloc_result_cols = [f"colocalization ch{ch1} ch{ch2}" for ch1, ch2 in
                                 itertools.combinations(channels_of_interest, 2)] + [
@@ -183,7 +188,7 @@ def manual_process_data(manual_label_df, channels_of_interest):
                     try:
                         cur_puncta = get_maxima(get_img_sec(cur_ch_img, x1, x2, y1, y2, None))
                     except ValueError:
-                        cur_puncta = [0, [], []]
+                        cur_puncta = Puncta([0, [], []])
                     manual_label_df.at[row, f"puncta {j} ch{ch}"] = cur_puncta
                     if len(cur_puncta) > cur_puncta_nums[i]:
                         cur_df_puncta_frames[i], cur_puncta_nums[i] = j, len(cur_puncta)
@@ -518,7 +523,7 @@ class Guv:
     def add_value(self, ch_mask, ch, lipid, f):
         if self.candidate is None:
             self.values.append(np.nan)  # TBD!!!!!
-            self.puncta_param.append([0, [], []])
+            self.puncta_param.append(Puncta([0, [], []]))
         else:
             if self.old_punctate and f < self.frame_punctate:
                 score = int(predict(self.candidate, ch, f, self.model, self.img_sz, self.num_bins))
@@ -532,7 +537,7 @@ class Guv:
     def get_values(self):
         value_empty = [np.nan for _ in range(self.init_f)]
         position_empty = [np.nan for _ in range(self.init_f)]
-        puncta_param_empty = [[0, [], []] for _ in range(self.init_f)]
+        puncta_param_empty = [Puncta([0, [], []]) for _ in range(self.init_f)]
         return [self.folder, self.fname, self.img_sz, self.get_averaged_punctateness(), self.adj,
                 self.init_f] + value_empty + self.values + puncta_param_empty + self.puncta_param + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
 
@@ -572,7 +577,7 @@ class Z_Stack_Guv(Guv):
     def add_value(self, ch_mask, ch, lipid, f):
         if self.candidate is None:
             self.values.append(np.nan)  # TBD!!!!!
-            self.puncta_param.append([0, [], []])
+            self.puncta_param.append(Puncta([0, [], []]))
         else:
             if self.old_punctate and f < self.frame_punctate:
                 score = int(predict(self.candidate, ch, f, self.model, self.img_sz, self.num_bins, self.old_punctate))
@@ -592,7 +597,7 @@ class Z_Stack_Guv(Guv):
     def get_values(self):
         value_empty = [np.nan for _ in range(self.init_f)]
         position_empty = [np.nan for _ in range(self.init_f)]
-        puncta_param_empty = [[0, [], []] for _ in range(self.init_f)]
+        puncta_param_empty = [Puncta([0, [], []]) for _ in range(self.init_f)]
         return [self.folder, self.fname, self.img_sz, self.get_averaged_punctateness(), self.adj, self.init_f,
                 self.equa_frame,
                 self.equa_size] + value_empty + self.values + puncta_param_empty + self.puncta_param + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
@@ -728,6 +733,21 @@ class Z_Stack_Series(Series):
                                                                                                            i in range(
                 self.num_frame)]
 
+class Puncta:
+    def __init__(self, num_puncta, puncta_coords, puncta_bbox):
+        self.num_puncta = num_puncta
+        self.puncta_coords = puncta_coords
+        self.puncta_bbox
+
+    def get_num_puncta(self):
+        return self.num_puncta
+
+    def get_puncta_coords(self):
+        return self.puncta_coords
+
+    def get_puncta_bbox(self):
+        return self.puncta_bbox
+
 # Puncta Quant
 def get_maxima(img):
     """Use processed image to pick up puncta information.
@@ -748,7 +768,7 @@ def get_maxima(img):
             coords.append(cur_center)
             bboxes.append(label_property.bbox)
     # components = best_gaussian_mixture(np.array(coords), max(img.shape))
-    return [len(coords), coords, bboxes]
+    return Puncta(len(coords), coords, bboxes)
 
 def best_gaussian_mixture(data, diam):
     """
@@ -821,7 +841,7 @@ def colocalization(df, chs):
             coloc, total = 0, 0
             for j in range(df["num frame"][i]):
                 cur_GUV = df.iloc[i]
-                ch1_puncta_coord, ch2_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"][1], cur_GUV[f"puncta {j} ch{ch2}"][1]
+                ch1_puncta_coord, ch2_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords()
                 total += max(len(ch1_puncta_coord), len(ch2_puncta_coord))
                 threshold = max(cur_GUV[f"w {j}"], cur_GUV[f"h {j}"]) * img_sz / 3
                 if len(ch1_puncta_coord) > len(ch2_puncta_coord):
@@ -896,7 +916,7 @@ def manual_colocalization(df, chs):
         for i in range(len(df)):
             cur_GUV = df.iloc[i]
             for j in range(cur_GUV["num frame"]):
-                ch1_puncta_coord, ch2_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"][1], cur_GUV[f"puncta {j} ch{ch2}"][1]
+                ch1_puncta_coord, ch2_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords()
                 x1, x2, y1, y2 = manual_label_position(cur_GUV)
                 threshold = max(x2 - x1, y2 - y1) / 3
                 if ch1 == 1 or len(ch1_puncta_coord) > len(ch2_puncta_coord):
@@ -918,7 +938,7 @@ def manual_colocalization(df, chs):
             for i in range(len(df)):
                 cur_GUV = df.iloc[i]
                 for j in range(cur_GUV["num frame"]):
-                    ch1_puncta_coord, ch2_puncta_coord, ch3_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"][1], cur_GUV[f"puncta {j} ch{ch2}"][1], [f"puncta {j} ch{ch3}"][1]
+                    ch1_puncta_coord, ch2_puncta_coord, ch3_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"][1], [f"puncta {j} ch{ch3}"].get_puncta_coords()
                     total[i] += len(ch2_puncta_coord)
                     x1, x2, y1, y2 = manual_label_position(cur_GUV)
                     threshold = max(x2 - x1, y2 - y1) / 3
