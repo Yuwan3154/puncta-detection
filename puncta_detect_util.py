@@ -147,14 +147,6 @@ def manual_process_data(manual_label_df, channels_of_interest):
     for ch_of_interest in channels_of_interest:
         puncta_pixel_threshold[ch_of_interest] = None
 
-    local_file_path = []
-    for file_path in manual_label_df["file path"]:
-        file_dir_decomp = file_path.split("/")
-        tif_file_name = file_dir_decomp[-1]
-        local_file_path.append("\\".join(
-            [".\\data", "\\".join(file_dir_decomp[5:8]), tif_file_name[:-4] + ".nd2-output", "(series 1).tif"]))
-    manual_label_df["file path"] = local_file_path
-
     manual_coloc_result_cols = [f"colocalization ch{ch1} ch{ch2}" for ch1, ch2 in
                                 itertools.combinations(channels_of_interest, 2)] + [
                                    f"colocalization weight ch{ch1} ch{ch2}" for ch1, ch2 in
