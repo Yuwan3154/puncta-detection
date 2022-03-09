@@ -729,7 +729,7 @@ class Puncta:
     def __init__(self, num_puncta, puncta_coords, puncta_bbox):
         self.num_puncta = num_puncta
         self.puncta_coords = puncta_coords
-        self.puncta_bbox
+        self.puncta_bbox = puncta_bbox
 
     def get_num_puncta(self):
         return self.num_puncta
@@ -981,7 +981,7 @@ def new_colocalization(df, im, chs):
                                 x1, x2, y1, y2 = get_coord([cur_GUV[f"x {j}"], cur_GUV[f"y {j}"], cur_GUV[f"w {j}"], cur_GUV[f"h {j}"]], img_sz=img_sz)
                                 cur_GUV_img = coloc_img[y1:y2, x1:x2]
                                 base_ch = ch1 if cur_GUV[f"puncta {j} ch{ch1}"][0] > cur_GUV[f"puncta {j} ch{ch2}"][0] else ch2
-                                for bbox in cur_GUV[f"puncta {j} ch{base_ch}"][2]:
+                                for bbox in cur_GUV[f"puncta {j} ch{base_ch}"].get_bbox():
                                     b_y1, b_x1, b_y2, b_x2 = bbox
                                     labels = measure.label(cur_GUV_img[b_y1:b_y2+1, b_x1:b_x2+1])
                                     for label_property in measure.regionprops(labels):
@@ -1049,7 +1049,7 @@ def new_manual_colocalization(df, chs):
                             base_ch = ch1
                         else:
                             base_ch = ch2
-                    for bbox in cur_GUV[f"puncta {j} ch{base_ch}"][2]:
+                    for bbox in cur_GUV[f"puncta {j} ch{base_ch}"].get_bbox():
                         b_y1, b_x1, b_y2, b_x2 = bbox
                         labels = measure.label(cur_GUV_img[b_y1:b_y2, b_x1:b_x2])
                         for label_property in measure.regionprops(labels):
@@ -1079,7 +1079,7 @@ def new_manual_colocalization(df, chs):
                         cur_GUV = cur_df.iloc[i]
                         x1, x2, y1, y2 = manual_label_position(cur_GUV)
                         cur_GUV_img = coloc_img[y1:y2, x1:x2]
-                        for bbox in cur_GUV[f"puncta {j} ch{base_ch}"][2]:
+                        for bbox in cur_GUV[f"puncta {j} ch{base_ch}"].get_bbox():
                             b_y1, b_x1, b_y2, b_x2 = bbox
                             labels = measure.label(cur_GUV_img[b_y1:b_y2, b_x1:b_x2])
                             for label_property in measure.regionprops(labels):
