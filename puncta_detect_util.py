@@ -984,8 +984,8 @@ def new_colocalization(df, im, chs):
                             try:
                                 x1, x2, y1, y2 = get_coord([cur_GUV[f"x {j}"], cur_GUV[f"y {j}"], cur_GUV[f"w {j}"], cur_GUV[f"h {j}"]], img_sz=img_sz)
                                 cur_GUV_img = coloc_img[y1:y2, x1:x2]
-                                base_ch = ch1 if cur_GUV[f"puncta {j} ch{ch1}"][0] > cur_GUV[f"puncta {j} ch{ch2}"][0] else ch2
-                                for bbox in cur_GUV[f"puncta {j} ch{base_ch}"].get_bbox():
+                                base_ch = ch1 if cur_GUV[f"puncta {j} ch{ch1}"].get_num_puncta() > cur_GUV[f"puncta {j} ch{ch2}"].get_num_puncta() else ch2
+                                for bbox in cur_GUV[f"puncta {j} ch{base_ch}"].get_puncta_bbox():
                                     b_y1, b_x1, b_y2, b_x2 = bbox
                                     labels = measure.label(cur_GUV_img[b_y1:b_y2+1, b_x1:b_x2+1])
                                     for label_property in measure.regionprops(labels):
@@ -1049,11 +1049,11 @@ def new_manual_colocalization(df, chs):
                     x1, x2, y1, y2 = manual_label_position(cur_GUV)
                     cur_GUV_img = coloc_img[y1:y2, x1:x2]
                     if ch1 != 1 and ch2 != 1:
-                        if cur_GUV[f"puncta {j} ch{ch1}"][0] > cur_GUV[f"puncta {j} ch{ch2}"][0]:
+                        if cur_GUV[f"puncta {j} ch{ch1}"].get_num_puncta() > cur_GUV[f"puncta {j} ch{ch2}"].get_num_puncta():
                             base_ch = ch1
                         else:
                             base_ch = ch2
-                    for bbox in cur_GUV[f"puncta {j} ch{base_ch}"].get_bbox():
+                    for bbox in cur_GUV[f"puncta {j} ch{base_ch}"].get_puncta_bbox():
                         b_y1, b_x1, b_y2, b_x2 = bbox
                         labels = measure.label(cur_GUV_img[b_y1:b_y2, b_x1:b_x2])
                         for label_property in measure.regionprops(labels):
@@ -1083,7 +1083,7 @@ def new_manual_colocalization(df, chs):
                         cur_GUV = cur_df.iloc[i]
                         x1, x2, y1, y2 = manual_label_position(cur_GUV)
                         cur_GUV_img = coloc_img[y1:y2, x1:x2]
-                        for bbox in cur_GUV[f"puncta {j} ch{base_ch}"].get_bbox():
+                        for bbox in cur_GUV[f"puncta {j} ch{base_ch}"].get_puncta_bbox():
                             b_y1, b_x1, b_y2, b_x2 = bbox
                             labels = measure.label(cur_GUV_img[b_y1:b_y2, b_x1:b_x2])
                             for label_property in measure.regionprops(labels):
