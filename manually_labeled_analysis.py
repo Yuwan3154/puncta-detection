@@ -24,7 +24,7 @@ from scipy.optimize import curve_fit
 import warnings
 warnings.filterwarnings('ignore')
 
-manual_label_fpath = "03_07_22_02-21-2022_repeat_all_z_stack.csv"
+manual_label_fpath = "./manual_results/03_07_22_02-21-2022_repeat_all_z_stack.csv"
 label = "03_07_22_02-21-2022_repeat_all_z_stack"
 channels_of_interest = [0, 1, 2]
 
