@@ -142,6 +142,68 @@ def process_data(imfolder, folder_index_count, result, num_bins, channels_of_int
     result = square_quality(result)
     return result, folder_index_count
 
+def manual_process_data(manual_label_df, channels_of_interest):
+    if not os.path.exists("manual_results"):
+        os.mkdir("manual_results")
+
+    puncta_pixel_threshold = dict()
+    for ch_of_interest in channels_of_interest:
+        puncta_pixel_threshold[ch_of_interest] = None
+
+    local_file_path = []
+    for file_path in manual_label_df["file path"]:
+        file_dir_decomp = file_path.split("/")
+        tif_file_name = file_dir_decomp[-1]
+        local_file_path.append("\\".join(
+            [".\\data", "\\".join(file_dir_decomp[5:8]), tif_file_name[:-4] + ".nd2-output", "(series 1).tif"]))
+    manual_label_df["file path"] = local_file_path
+
+    manual_coloc_result_cols = [f"colocalization ch{ch1} ch{ch2}" for ch1, ch2 in
+                                itertools.combinations(channels_of_interest, 2)] + [
+                                   f"colocalization weight ch{ch1} ch{ch2}" for ch1, ch2 in
+                                   itertools.combinations(channels_of_interest, 2)]
+    manual_label_df[manual_coloc_result_cols] = np.nan
+    manual_label_df["punctate frame"] = np.nan
+    manual_puncta_cols = []
+    max_frame = max(manual_label_df["num frame"])
+    for ch in channels_of_interest:
+        manual_puncta_cols.extend([f"puncta {j} ch{ch}" for j in range(max_frame)])
+    manual_label_df[manual_puncta_cols] = None
+    column_dict = dict()
+    for col in manual_puncta_cols:
+        column_dict[col] = object
+    manual_label_df.astype(column_dict, copy=False)
+    for file_path in manual_label_df["file path"].unique():
+        cur_df = manual_label_df[manual_label_df["file path"] == file_path]
+        cur_df_puncta_cols, cur_df_puncta_frames, cur_puncta_nums = [], np.zeros(len(cur_df), dtype=int), np.zeros(
+            len(cur_df), dtype=int)
+        all_frame_img = io.imread(file_path)
+        for j in range(cur_df["num frame"].iloc[0]):
+            if len(all_frame_img.shape) == 4:
+                all_ch_img = all_frame_img[j, :, :, :]
+            else:
+                all_ch_img = all_frame_img
+            for ch in channels_of_interest:
+                cur_ch_img = preprocess_for_puncta(all_ch_img[:, :, ch], puncta_pixel_threshold[ch])
+                i = 0
+                for row in cur_df.index:
+                    x1, x2, y1, y2 = manual_label_position(cur_df.loc[row])
+                    try:
+                        cur_puncta = get_maxima(get_img_sec(cur_ch_img, x1, x2, y1, y2, None))
+                    except ValueError:
+                        cur_puncta = [0, [], []]
+                    manual_label_df.at[row, f"puncta {j} ch{ch}"] = cur_puncta
+                    if len(cur_puncta) > cur_puncta_nums[i]:
+                        cur_df_puncta_frames[i], cur_puncta_nums[i] = j, len(cur_puncta)
+                    i += 1
+        manual_label_df.at[cur_df.index, "punctate frame"] = cur_df_puncta_frames
+
+    for ch in channels_of_interest:
+        manual_label_df = new_punctate(manual_label_df, ch)
+    manual_label_df = manual_colocalization(manual_label_df, channels_of_interest)
+    manual_label_df = new_manual_colocalization(manual_label_df, channels_of_interest)
+    return manual_label_df
+
 def print_result(result, channels_of_interest):
     print("2-channel colocalization")
     # 2-channel colocalization
@@ -807,9 +869,9 @@ def preprocess_for_puncta(img, threshold):
     identification.
     """
     if threshold is None:
-        io.imsave("temp1.tif", img)
-        img = cv.imread("temp1.tif", 0)
-        os.remove("temp1.tif")
+        io.imsave("temp.tif", img)
+        img = cv.imread("temp.tif", 0)
+        os.remove("temp.tif")
         img = cv.fastNlMeansDenoising(img, h=3)
         img = cv.GaussianBlur(img, (3, 3), 0)
         img_shape = img.shape
@@ -840,10 +902,9 @@ def manual_colocalization(df, chs):
         df[f"colocalization weight ch{ch1} ch{ch2}"] = np.nan
         coloc, total = [0 for _ in range(len(df))], [0 for _ in range(len(df))]
         for i in range(len(df)):
-            for j in range(df["num frame"].iloc[0]):
-                cur_GUV = df.iloc[i]
-                ch1_puncta_coord, ch2_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"][1], cur_GUV[f"puncta {j} ch{ch2}"][
-                    1]
+            cur_GUV = df.iloc[i]
+            for j in range(cur_GUV["num frame"]):
+                ch1_puncta_coord, ch2_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"][1], cur_GUV[f"puncta {j} ch{ch2}"][1]
                 x1, x2, y1, y2 = manual_label_position(cur_GUV)
                 threshold = max(x2 - x1, y2 - y1) / 3
                 if ch1 == 1 or len(ch1_puncta_coord) > len(ch2_puncta_coord):
@@ -863,11 +924,9 @@ def manual_colocalization(df, chs):
             df[f"colocalization weight ch{ch1} ch{ch2} ch{ch3}"] = np.nan
             coloc, total = [0 for _ in range(len(df))], [0 for _ in range(len(df))]
             for i in range(len(df)):
-                for j in range(df["num frame"].iloc[0]):
-                    cur_GUV = df.iloc[i]
-                    ch1_puncta_coord, ch2_puncta_coord, ch3_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"][1], \
-                                                                           cur_GUV[f"puncta {j} ch{ch2}"][1], \
-                                                                           cur_GUV[f"puncta {j} ch{ch3}"][1]
+                cur_GUV = df.iloc[i]
+                for j in range(cur_GUV["num frame"]):
+                    ch1_puncta_coord, ch2_puncta_coord, ch3_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"][1], cur_GUV[f"puncta {j} ch{ch2}"][1], [f"puncta {j} ch{ch3}"][1]
                     total[i] += len(ch2_puncta_coord)
                     x1, x2, y1, y2 = manual_label_position(cur_GUV)
                     threshold = max(x2 - x1, y2 - y1) / 3
@@ -936,9 +995,9 @@ def preprocess_for_coloc(img):
     identification.
     """
     size = (5, 5)
-    io.imsave("temp1.tif", img)
-    img = cv.imread("temp1.tif", 0)
-    os.remove("temp1.tif")
+    io.imsave("temp.tif", img)
+    img = cv.imread("temp.tif", 0)
+    os.remove("temp.tif")
     img_shape = img.shape
     img = cv.fastNlMeansDenoising(img, h=5)
     img = cv.GaussianBlur(img, size, 0)
