@@ -67,7 +67,7 @@ def identify_img(imfolder, yolo_model_path, thresh=0.8):
         except subprocess.CalledProcessError as e:
             print(e.output.decode('UTF-8'))
 
-def process_data(imfolder, folder_index_count, result, num_bins, chs_of_interest, lipid_ch, series_type, puncta_model, old_punctate, frame_punctate, verbose, puncta_pixel_threshold):
+def process_data(imfolder, folder_index_count, result, num_bins, channels_of_interest, lipid_ch, series_type, puncta_model, old_punctate, frame_punctate, verbose, puncta_pixel_threshold):
     file_list = []
     for f in os.listdir(imfolder):
         if f.endswith(".tif"):
@@ -81,7 +81,7 @@ def process_data(imfolder, folder_index_count, result, num_bins, chs_of_interest
         signal_df_lst = []
 
         # calculates the output dataframe for each channel for the current file
-        for ch_of_interest in chs_of_interest:
+        for ch_of_interest in channels_of_interest:
             if len(im.shape) == 4:
                 ch = np.array(im[:, :, :, ch_of_interest])
                 lipid = np.array(im[:, :, :, lipid_ch])
@@ -124,13 +124,13 @@ def process_data(imfolder, folder_index_count, result, num_bins, chs_of_interest
 
         # deals with when multiple channels of interest are present
         final_df = signal_df_lst[0].sort_values(by="x 0").reset_index(drop=True)
-        if len(chs_of_interest) > 1:
+        if len(channels_of_interest) > 1:
             for cur_df in signal_df_lst[1:]:
                 cur_df = cur_df.sort_values(by="x 0").reset_index(drop=True)
                 cols_to_use = cur_df.columns.difference(final_df.columns).to_list()  # https://stackoverflow.com/questions/19125091/pandas-merge-how-to-avoid-duplicating-columns
                 final_df = pd.DataFrame.merge(final_df, cur_df[cols_to_use], left_index=True, right_index=True, how='outer')
-            final_df = colocalization(final_df, chs_of_interest)
-            final_df = new_colocalization(final_df, im, chs_of_interest)
+            final_df = colocalization(final_df, channels_of_interest)
+            final_df = new_colocalization(final_df, im, channels_of_interest)
 
         if result is None:
             result = final_df
@@ -213,45 +213,57 @@ def manual_print_result(manual_label_df, channels_of_interest):
     # 2-channel colocalization
     for fpath in np.unique(manual_label_df["file path"]):
         cur_file_df = manual_label_df[np.array(manual_label_df["file path"] == fpath)]
-        for ch1, ch2 in itertools.combinations(chs_of_interest, 2):
+        for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
             cur_chs_df = cur_file_df[
                 np.array(cur_file_df[f"new punctate ch{ch1}"]) * np.array(cur_file_df[f"new punctate ch{ch2}"])]
             cur_chs_df = cur_chs_df[cur_chs_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()]
             cur_percent = np.mean(cur_chs_df[f"colocalization ch{ch1} ch{ch2}"])
             print(f"The percent colocalization for {fpath} between channels {ch1} and {ch2} is {cur_percent}.")
+    for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
+        ch_percent = np.mean(manual_label_df[f"colocalization ch{ch1} ch{ch2}"])
+        print(f"The ovreall percent colocalization between channels {ch1} and {ch2} is {ch_percent}.")
 
     print("2-channel new colocalization")
     # 2-channel new colocalization
     for fpath in np.unique(manual_label_df["file path"]):
         cur_file_df = manual_label_df[np.array(manual_label_df["file path"] == fpath)]
-        for ch1, ch2 in itertools.combinations(chs_of_interest, 2):
+        for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
             cur_chs_df = cur_file_df[
                 np.array(cur_file_df[f"new punctate ch{ch1}"]) * np.array(cur_file_df[f"new punctate ch{ch2}"])]
             cur_chs_df = cur_chs_df[cur_chs_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()]
             cur_percent = np.mean(cur_chs_df[f"new colocalization ch{ch1} ch{ch2}"])
             print(f"The percent new colocalization for {fpath} between channels {ch1} and {ch2} is {cur_percent}.")
+    for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
+        ch_percent = np.mean(manual_label_df[f"new colocalization ch{ch1} ch{ch2}"])
+        print(f"The overall percent new colocalization between channels {ch1} and {ch2} is {ch_percent}.")
 
     print("3-channel colocalization")
     # 3-channel colocalization
     for fpath in np.unique(manual_label_df["file path"]):
         cur_file_df = manual_label_df[np.array(manual_label_df["file path"] == fpath)]
-        for ch1, ch2, ch3 in itertools.combinations(chs_of_interest, 3):
+        for ch1, ch2, ch3 in itertools.combinations(channels_of_interest, 3):
             cur_chs_df = cur_file_df[np.array(cur_file_df[f"new punctate ch{ch1}"]) * np.array(
                 cur_file_df[f"new punctate ch{ch2}"]) * np.array(cur_file_df[f"new punctate ch{ch3}"])]
             cur_chs_df = cur_chs_df[cur_chs_df[f"colocalization weight ch{ch1} ch{ch2} ch{ch3}"].notna()]
             cur_percent = np.mean(cur_chs_df[f"colocalization ch{ch1} ch{ch2} ch{ch3}"])
             print(f"The percent colocalization for {fpath} between channels {ch1}, {ch2} and {ch3} is {cur_percent}.")
+    for ch1, ch2, ch3 in itertools.combinations(channels_of_interest, 3):
+        ch_percent = np.mean(manual_label_df[f"colocalization ch{ch1} ch{ch2} ch{ch3}"])
+        print(f"The ovreall percent colocalization between channels {ch1}, {ch2} and {ch3} is {ch_percent}.")
 
     # 3-channel new colocalization
     print("3-channel new colocalization")
     for fpath in np.unique(manual_label_df["file path"]):
         cur_file_df = manual_label_df[np.array(manual_label_df["file path"] == fpath)]
-        for ch1, ch2, ch3 in itertools.combinations(chs_of_interest, 3):
+        for ch1, ch2, ch3 in itertools.combinations(channels_of_interest, 3):
             cur_chs_df = cur_file_df[np.array(cur_file_df[f"new punctate ch{ch1}"]) * np.array(
                 cur_file_df[f"new punctate ch{ch2}"]) * np.array(cur_file_df[f"new punctate ch{ch3}"])]
             cur_chs_df = cur_chs_df[cur_chs_df[f"colocalization weight ch{ch1} ch{ch2} ch{ch3}"].notna()]
             cur_percent = np.mean(cur_chs_df[f"new colocalization ch{ch1} ch{ch2} ch{ch3}"])
             print(f"The percent new colocalization for {fpath} between channels {ch1}, {ch2} and {ch3} is {cur_percent}.")
+    for ch1, ch2, ch3 in itertools.combinations(channels_of_interest, 3):
+        ch_percent = np.mean(manual_label_df[f"new colocalization ch{ch1} ch{ch2} ch{ch3}"])
+        print(f"The overall percent new colocalization between channels {ch1}, {ch2} and {ch3} is {ch_percent}.")
 
 def folder_index(x):
     """

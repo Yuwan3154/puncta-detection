@@ -29,9 +29,9 @@ label = "03_07_22_02-20-2022_69.5% DOPC_30% DOPS_0.5% Atto_200 nM Dark ALG2_100 
 channels_of_interest = [0, 1, 2]
 
 manual_label_df = pd.read_csv(manual_label_fpath)
-if not os.path.exists("results"):
-    os.mkdir("results")
-save_path = join("results", label)
+if not os.path.exists("manual_results"):
+    os.mkdir("manual_results")
+save_path = join("manual_results", label)
 
 puncta_pixel_threshold = dict()
 for ch_of_interest in channels_of_interest:
