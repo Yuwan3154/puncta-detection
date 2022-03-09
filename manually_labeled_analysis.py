@@ -24,8 +24,8 @@ from scipy.optimize import curve_fit
 import warnings
 warnings.filterwarnings('ignore')
 
-manual_label_fpath = "/mount/local5/chenxi/puncta-detection/data/02-21-2022/70_ DOPC_30_ DOPS/200 nM Dark ALG2_100 nM Cy3 ALIX_10 nM CHMP4b_100 nM dark CHMP2A_100 nM dark CHMP3_100 nM LD 655 Vps4b/Manual_label_Feb_21_2022_final.csv"      # Enter your manual label file address here
-label = "03_07_22_02-21-2022_all_z_stack"
+manual_label_fpath = "/mount/local5/chenxi/puncta-detection/data/02-21-2022/70_ DOPC_30_ DOPS/Repeat/200 nM Dark ALG2_100 nM Cy3 ALIX_10 nM CHMP4b_100 nM dark CHMP2A_100 nM dark CHMP3_100 nM LD 655 Vps4b/Repeat_Manual_label_Feb_21_2022 - manual_label_example.csv"      # Enter your manual label file address here
+label = "03_07_22_02-21-2022_repeat_all_z_stack"
 channels_of_interest = [0, 1, 2]
 
 manual_label_df = pd.read_csv(manual_label_fpath)
@@ -41,7 +41,7 @@ local_file_path = []
 for file_path in manual_label_df["file path"]:
   file_dir_decomp = file_path.split("/")
   tif_file_name = file_dir_decomp[-1]
-  local_file_path.append(os.path.sep.join([".", "data", os.path.sep.join(file_dir_decomp[5:8]).replace("%", "_"), tif_file_name[:-4] + ".nd2-output", "(series 1).tif"]))
+  local_file_path.append(os.path.sep.join([".", "data", os.path.sep.join(file_dir_decomp[5:9]).replace("%", "_"), tif_file_name[:-4] + ".nd2-output", "(series 1).tif"]))
 manual_label_df["file path"] = local_file_path
 
 manual_coloc_result_cols = [f"colocalization ch{ch1} ch{ch2}" for ch1, ch2 in itertools.combinations(channels_of_interest, 2)] + [f"colocalization weight ch{ch1} ch{ch2}" for ch1, ch2 in itertools.combinations(channels_of_interest, 2)]
