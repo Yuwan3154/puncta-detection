@@ -143,29 +143,11 @@ def process_data(imfolder, folder_index_count, result, num_bins, channels_of_int
     return result, folder_index_count
 
 def manual_process_data(manual_label_df, channels_of_interest):
-<<<<<<< HEAD
-    if not os.path.exists("manual_results"):
-        os.mkdir("manual_results")
-    save_path = join("manual_results", label)
-
-=======
     manual_label_df = manual_label_df[["file path", "image size", "num frame", "top left x", "top left y", "bottom right x", "bottom right y"]]
->>>>>>> f4a42f638f25d330b07e0eb59f2f46591b96ac98
     puncta_pixel_threshold = dict()
     for ch_of_interest in channels_of_interest:
         puncta_pixel_threshold[ch_of_interest] = None
 
-<<<<<<< HEAD
-    local_file_path = []
-    for file_path in manual_label_df["file path"]:
-        file_dir_decomp = file_path.split("/")
-        tif_file_name = file_dir_decomp[-1]
-        local_file_path.append("\\".join(
-            [".\\data", "\\".join(file_dir_decomp[5:8]), tif_file_name[:-4] + ".nd2-output", "(series 1).tif"]))
-    manual_label_df["file path"] = local_file_path
-
-=======
->>>>>>> f4a42f638f25d330b07e0eb59f2f46591b96ac98
     manual_coloc_result_cols = [f"colocalization ch{ch1} ch{ch2}" for ch1, ch2 in
                                 itertools.combinations(channels_of_interest, 2)] + [
                                    f"colocalization weight ch{ch1} ch{ch2}" for ch1, ch2 in
@@ -183,11 +165,8 @@ def manual_process_data(manual_label_df, channels_of_interest):
     manual_label_df.astype(column_dict, copy=False)
     for file_path in manual_label_df["file path"].unique():
         cur_df = manual_label_df[manual_label_df["file path"] == file_path]
-<<<<<<< HEAD
-        cur_df_puncta_cols, cur_df_puncta_frames, cur_puncta_nums = [], np.zeros(len(cur_df), dtype=int), np.zeros(
-=======
         cur_df_puncta_frames, cur_puncta_nums = np.zeros(len(cur_df), dtype=int), np.zeros(
->>>>>>> f4a42f638f25d330b07e0eb59f2f46591b96ac98
+
             len(cur_df), dtype=int)
         all_frame_img = io.imread(file_path)
         for j in range(cur_df["num frame"].iloc[0]):
@@ -203,17 +182,11 @@ def manual_process_data(manual_label_df, channels_of_interest):
                     try:
                         cur_puncta = get_maxima(get_img_sec(cur_ch_img, x1, x2, y1, y2, None))
                     except ValueError:
-<<<<<<< HEAD
-                        cur_puncta = [0, [], []]
-                    manual_label_df.at[row, f"puncta {j} ch{ch}"] = cur_puncta
-                    if len(cur_puncta) > cur_puncta_nums[i]:
-                        cur_df_puncta_frames[i], cur_puncta_nums[i] = j, len(cur_puncta)
-=======
+
                         cur_puncta = Puncta([0, [], []])
                     manual_label_df.at[row, f"puncta {j} ch{ch}"] = cur_puncta
                     if cur_puncta.get_num_puncta() > cur_puncta_nums[i]:
                         cur_df_puncta_frames[i], cur_puncta_nums[i] = j, cur_puncta.get_num_puncta()
->>>>>>> f4a42f638f25d330b07e0eb59f2f46591b96ac98
                     i += 1
         manual_label_df.at[cur_df.index, "punctate frame"] = cur_df_puncta_frames
 
@@ -939,11 +912,7 @@ def manual_colocalization(df, chs):
         for i in range(len(df)):
             cur_GUV = df.iloc[i]
             for j in range(cur_GUV["num frame"]):
-<<<<<<< HEAD
-                ch1_puncta_coord, ch2_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"][1], cur_GUV[f"puncta {j} ch{ch2}"][1]
-=======
                 ch1_puncta_coord, ch2_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords()
->>>>>>> f4a42f638f25d330b07e0eb59f2f46591b96ac98
                 x1, x2, y1, y2 = manual_label_position(cur_GUV)
                 threshold = max(x2 - x1, y2 - y1) / 3
                 if ch1 == 1 or len(ch1_puncta_coord) > len(ch2_puncta_coord):
@@ -965,11 +934,7 @@ def manual_colocalization(df, chs):
             for i in range(len(df)):
                 cur_GUV = df.iloc[i]
                 for j in range(cur_GUV["num frame"]):
-<<<<<<< HEAD
-                    ch1_puncta_coord, ch2_puncta_coord, ch3_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"][1], cur_GUV[f"puncta {j} ch{ch2}"][1], [f"puncta {j} ch{ch3}"][1]
-=======
                     ch1_puncta_coord, ch2_puncta_coord, ch3_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords(), [f"puncta {j} ch{ch3}"].get_puncta_coords()
->>>>>>> f4a42f638f25d330b07e0eb59f2f46591b96ac98
                     total[i] += len(ch2_puncta_coord)
                     x1, x2, y1, y2 = manual_label_position(cur_GUV)
                     threshold = max(x2 - x1, y2 - y1) / 3
