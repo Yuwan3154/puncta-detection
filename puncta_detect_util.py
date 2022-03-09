@@ -145,12 +145,16 @@ def process_data(imfolder, folder_index_count, result, num_bins, channels_of_int
 def manual_process_data(manual_label_df, channels_of_interest):
     if not os.path.exists("manual_results"):
         os.mkdir("manual_results")
+<<<<<<< HEAD
     save_path = join("manual_results", label)
+=======
+>>>>>>> b41ce303b90bfa4e79ef67f3d8b2f63374ee91c2
 
     puncta_pixel_threshold = dict()
     for ch_of_interest in channels_of_interest:
         puncta_pixel_threshold[ch_of_interest] = None
 
+<<<<<<< HEAD
     local_file_path = []
     for file_path in manual_label_df["file path"]:
         file_dir_decomp = file_path.split("/")
@@ -159,6 +163,8 @@ def manual_process_data(manual_label_df, channels_of_interest):
             [".\\data", "\\".join(file_dir_decomp[5:8]), tif_file_name[:-4] + ".nd2-output", "(series 1).tif"]))
     manual_label_df["file path"] = local_file_path
 
+=======
+>>>>>>> b41ce303b90bfa4e79ef67f3d8b2f63374ee91c2
     manual_coloc_result_cols = [f"colocalization ch{ch1} ch{ch2}" for ch1, ch2 in
                                 itertools.combinations(channels_of_interest, 2)] + [
                                    f"colocalization weight ch{ch1} ch{ch2}" for ch1, ch2 in
