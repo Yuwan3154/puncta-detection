@@ -840,10 +840,9 @@ def manual_colocalization(df, chs):
         df[f"colocalization weight ch{ch1} ch{ch2}"] = np.nan
         coloc, total = [0 for _ in range(len(df))], [0 for _ in range(len(df))]
         for i in range(len(df)):
-            for j in range(df["num frame"].iloc[0]):
-                cur_GUV = df.iloc[i]
-                ch1_puncta_coord, ch2_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"][1], cur_GUV[f"puncta {j} ch{ch2}"][
-                    1]
+            cur_GUV = df.iloc[i]
+            for j in range(cur_GUV["num frame"]):
+                ch1_puncta_coord, ch2_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"][1], cur_GUV[f"puncta {j} ch{ch2}"][1]
                 x1, x2, y1, y2 = manual_label_position(cur_GUV)
                 threshold = max(x2 - x1, y2 - y1) / 3
                 if ch1 == 1 or len(ch1_puncta_coord) > len(ch2_puncta_coord):
@@ -863,11 +862,9 @@ def manual_colocalization(df, chs):
             df[f"colocalization weight ch{ch1} ch{ch2} ch{ch3}"] = np.nan
             coloc, total = [0 for _ in range(len(df))], [0 for _ in range(len(df))]
             for i in range(len(df)):
-                for j in range(df["num frame"].iloc[0]):
-                    cur_GUV = df.iloc[i]
-                    ch1_puncta_coord, ch2_puncta_coord, ch3_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"][1], \
-                                                                           cur_GUV[f"puncta {j} ch{ch2}"][1], \
-                                                                           cur_GUV[f"puncta {j} ch{ch3}"][1]
+                cur_GUV = df.iloc[i]
+                for j in range(cur_GUV["num frame"]):
+                    ch1_puncta_coord, ch2_puncta_coord, ch3_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"][1], cur_GUV[f"puncta {j} ch{ch2}"][1], [f"puncta {j} ch{ch3}"][1]
                     total[i] += len(ch2_puncta_coord)
                     x1, x2, y1, y2 = manual_label_position(cur_GUV)
                     threshold = max(x2 - x1, y2 - y1) / 3
