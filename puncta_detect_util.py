@@ -731,8 +731,8 @@ class Z_Stack_Series(Series):
 class Puncta:
     def __init__(self, num_puncta, puncta_coords, puncta_bbox):
         self.num_puncta = num_puncta
-        self.puncta_coords = puncta_coords
-        self.puncta_bbox = puncta_bbox
+        self.puncta_coords = tuple(puncta_coords)
+        self.puncta_bbox = tuple(puncta_bbox)
 
     def get_num_puncta(self):
         return self.num_puncta
@@ -758,7 +758,7 @@ def get_maxima(img):
     coords, bboxes = [], []
     for label_property in measure.regionprops(labels):
         if label_property.area >= 5:
-            cur_center = np.array([int(label_property.centroid[1]), int(label_property.centroid[0])])
+            cur_center = (int(label_property.centroid[1]), int(label_property.centroid[0]))
             # if sum(np.sqrt((cur_center - center_of_img)**2)) > cutoff:
             coords.append(cur_center)
             bboxes.append(label_property.bbox)
@@ -934,7 +934,7 @@ def manual_colocalization(df, chs):
             for i in range(len(df)):
                 cur_GUV = df.iloc[i]
                 for j in range(cur_GUV["num frame"]):
-                    ch1_puncta_coord, ch2_puncta_coord, ch3_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords(), [f"puncta {j} ch{ch3}"].get_puncta_coords()
+                    ch1_puncta_coord, ch2_puncta_coord, ch3_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch3}"].get_puncta_coords()
                     total[i] += len(ch2_puncta_coord)
                     x1, x2, y1, y2 = manual_label_position(cur_GUV)
                     threshold = max(x2 - x1, y2 - y1) / 3
