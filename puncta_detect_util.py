@@ -143,6 +143,7 @@ def process_data(imfolder, folder_index_count, result, num_bins, channels_of_int
     return result, folder_index_count
 
 def manual_process_data(manual_label_df, channels_of_interest):
+    manual_label_df = manual_label_df[["file path", "image size", "num frame", "top left x", "top left y", "bottom right x", "bottom right y"]]
     puncta_pixel_threshold = dict()
     for ch_of_interest in channels_of_interest:
         puncta_pixel_threshold[ch_of_interest] = None
@@ -164,7 +165,7 @@ def manual_process_data(manual_label_df, channels_of_interest):
     manual_label_df.astype(column_dict, copy=False)
     for file_path in manual_label_df["file path"].unique():
         cur_df = manual_label_df[manual_label_df["file path"] == file_path]
-        cur_df_puncta_cols, cur_df_puncta_frames, cur_puncta_nums = [], np.zeros(len(cur_df), dtype=int), np.zeros(
+        cur_df_puncta_frames, cur_puncta_nums = np.zeros(len(cur_df), dtype=int), np.zeros(
             len(cur_df), dtype=int)
         all_frame_img = io.imread(file_path)
         for j in range(cur_df["num frame"].iloc[0]):
@@ -182,8 +183,8 @@ def manual_process_data(manual_label_df, channels_of_interest):
                     except ValueError:
                         cur_puncta = Puncta([0, [], []])
                     manual_label_df.at[row, f"puncta {j} ch{ch}"] = cur_puncta
-                    if len(cur_puncta) > cur_puncta_nums[i]:
-                        cur_df_puncta_frames[i], cur_puncta_nums[i] = j, len(cur_puncta)
+                    if cur_puncta.get_num_puncta() > cur_puncta_nums[i]:
+                        cur_df_puncta_frames[i], cur_puncta_nums[i] = j, cur_puncta.get_num_puncta()
                     i += 1
         manual_label_df.at[cur_df.index, "punctate frame"] = cur_df_puncta_frames
 
@@ -796,8 +797,9 @@ def new_punctate(df, ch):
     result = []
     for i in range(len(df)):
         cur_punctate = False
-        for j in range(df.iloc[i]["num frame"]):
-            if df.iloc[i][f"puncta {j} ch{ch}"][0] > 0:
+        cur_GUV = df.iloc[i]
+        for j in range(cur_GUV["num frame"]):
+            if cur_GUV[f"puncta {j} ch{ch}"].get_num_puncta() > 0:
                 cur_punctate = True
                 break
         result.append(cur_punctate)
@@ -930,7 +932,7 @@ def manual_colocalization(df, chs):
             for i in range(len(df)):
                 cur_GUV = df.iloc[i]
                 for j in range(cur_GUV["num frame"]):
-                    ch1_puncta_coord, ch2_puncta_coord, ch3_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"][1], [f"puncta {j} ch{ch3}"].get_puncta_coords()
+                    ch1_puncta_coord, ch2_puncta_coord, ch3_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords(), [f"puncta {j} ch{ch3}"].get_puncta_coords()
                     total[i] += len(ch2_puncta_coord)
                     x1, x2, y1, y2 = manual_label_position(cur_GUV)
                     threshold = max(x2 - x1, y2 - y1) / 3
