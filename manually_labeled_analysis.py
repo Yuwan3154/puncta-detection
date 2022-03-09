@@ -28,7 +28,10 @@ manual_label_fpath = "./manual_results/03_07_22_02-21-2022_repeat_all_z_stack.cs
 label = "03_07_22_02-21-2022_repeat_all_z_stack"
 channels_of_interest = [0, 1, 2]
 
+if not os.path.exists("manual_results"):
+    os.mkdir("manual_results")
 save_path = join("manual_results", label)
+
 manual_label_df = pd.read_csv(manual_label_fpath)
 manual_label_df = manual_process_data(manual_label_df, channels_of_interest)
 
