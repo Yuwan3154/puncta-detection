@@ -878,17 +878,18 @@ def preprocess_for_puncta(img, threshold):
     Convert the given 2D image into a preprocessed image for puncta
     identification.
     """
-    if threshold is None:
-        img = np.maximum(img - threshold, np.zeros_like(img))
-
-    io.imsave("temp.tif", img)
-    img = cv.imread("temp.tif", 0)
-    os.remove("temp.tif")
-    img = cv.fastNlMeansDenoising(img, h=3)
-    img = cv.GaussianBlur(img, (3, 3), 0)
-    img_shape = img.shape
-    img = normalize(np.array([np.ravel(img)])).reshape(img_shape)
-    img = img >threshold_otsu(img)
+    if threshold is not None:
+        img = np.maximum(img - threshold, np.zeros_like(img)).astype("uint16")
+        img = img > threshold_otsu(img)
+    else:
+        io.imsave("temp.tif", img)
+        img = cv.imread("temp.tif", 0)
+        os.remove("temp.tif")
+        img = cv.fastNlMeansDenoising(img, h=3)
+        img = cv.GaussianBlur(img, (3, 3), 0)
+        img_shape = img.shape
+        img = normalize(np.array([np.ravel(img)])).reshape(img_shape)
+        img = img > 1.2 * threshold_otsu(img)
     return img
 
 # Manual Colocalization
