@@ -879,7 +879,7 @@ def preprocess_for_puncta(img, threshold):
     identification.
     """
     if threshold is None:
-        img = img - threshold
+        img = np.maximum(img - threshold, np.zeros_like(img))
 
     io.imsave("temp.tif", img)
     img = cv.imread("temp.tif", 0)
