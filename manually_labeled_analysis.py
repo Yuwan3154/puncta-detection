@@ -24,8 +24,8 @@ from scipy.optimize import curve_fit
 import warnings
 warnings.filterwarnings('ignore')
 
-manual_label_file_path_list = ["Repeat_Manual_label_Feb_21_2022 - manual_label_example.csv"]
-labels = ["03_08_22_02-21-2022_Repeat_all_z_stack_dataset_threshold_li_ch0_upstream"]
+manual_label_file_path_list = ["data\\02-20-2022\\69.5_ DOPC_30_ DOPS_0.5_ Atto\\200 nM Dark ALG2_100 nM Cy3 ALIX_10 nM CHMP4b_100 nM dark CHMP2A_100 nM dark CHMP3_100 nM LD 655 Vps4b\\Manual_label_Feb_20_2022 - manual_label_example.csv"]
+labels = ["03_08_22_02-20-2022_all_z_stack_dataset_threshold_li_ch0_upstream"]
 channels_of_interest = [0, 1, 2]
 
 if not os.path.exists("manual_results"):

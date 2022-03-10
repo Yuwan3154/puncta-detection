@@ -49,23 +49,24 @@ def extract_image(imfolder, lipid_channel):
       io.imsave(fname=frame_fname, arr=lipid)
 
 def identify_img(imfolder, yolo_model_path, thresh=0.8):
+    cwd = os.getcwd()
+    os.chdir(".\\yolov5")
     file_list = []
-    if not imfolder.endswith(os.path.sep):
-        imfolder += os.path.sep
     for i in os.listdir(imfolder):
         if i.endswith(".tif"):
             file_list.append(i)
 
     for x in file_list:
         img_sz = (cv.fastNlMeansDenoising(cv.imread(join(imfolder, x), 0), h=1.5)).shape[1]
-        series_folder = imfolder + x[:-4]
+        series_folder = join(imfolder, x[:-4])
         # os.system("python detect.py --weights /content/yolov5/best.pt --img 416 --conf 0.6 --source " + series_folder + " --save-txt")
         try:
             subprocess.check_output(
-                ["python", ".\\yolov5\\detect.py", "--weights", yolo_model_path, "--img", str(img_sz), "--conf",
+                ["python", "detect.py", "--weights", yolo_model_path, "--img", str(img_sz), "--conf",
                  str(thresh), "--source", f"{series_folder}", "--save-txt"])
         except subprocess.CalledProcessError as e:
             print(e.output.decode('UTF-8'))
+    os.chdir(cwd)
 
 def process_data(imfolder, folder_index_count, result, num_bins, channels_of_interest, lipid_ch, series_type, puncta_model, old_punctate, frame_punctate, verbose, puncta_pixel_threshold):
     file_list = []
@@ -184,7 +185,7 @@ def manual_process_data(manual_label_df, channels_of_interest):
                         cur_puncta = get_maxima(get_img_sec(cur_ch_img, x1, x2, y1, y2, None))
                     except ValueError:
 
-                        cur_puncta = Puncta([0, [], []])
+                        cur_puncta = Puncta(0, [], [])
                     manual_label_df.at[row, f"puncta {j} ch{ch}"] = cur_puncta
                     if cur_puncta.get_num_puncta() > cur_puncta_nums[i]:
                         cur_df_puncta_frames[i], cur_puncta_nums[i] = j, cur_puncta.get_num_puncta()
@@ -198,6 +199,7 @@ def manual_process_data(manual_label_df, channels_of_interest):
     return manual_label_df
 
 def print_result(result, channels_of_interest):
+    result = result[result["square quality"]]
     print("2-channel colocalization")
     # 2-channel colocalization
     for folder in np.unique(result["folder"]):
@@ -205,8 +207,7 @@ def print_result(result, channels_of_interest):
         for file_name in np.unique((result[result["folder"] == folder])["file name"]):
             cur_file_df = result[np.array(result["folder"] == folder) * np.array(result["file name"] == file_name)]
             for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
-                cur_chs_df = cur_file_df[np.array(cur_file_df["square quality"])]
-                cur_chs_df = cur_chs_df[cur_chs_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()]
+                cur_chs_df = cur_file_df[cur_file_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()]
                 cur_percent = np.mean(cur_chs_df[f"colocalization ch{ch1} ch{ch2}"])
                 cur_folder_result.extend([cur_percent] * len(cur_chs_df))
                 print(
@@ -223,8 +224,7 @@ def print_result(result, channels_of_interest):
         for file_name in np.unique((result[result["folder"] == folder])["file name"]):
             cur_file_df = result[np.array(result["folder"] == folder) * np.array(result["file name"] == file_name)]
             for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
-                cur_chs_df = cur_file_df[np.array(cur_file_df["square quality"])]
-                cur_chs_df = cur_chs_df[cur_chs_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()]
+                cur_chs_df = cur_file_df[cur_file_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()]
                 cur_percent = np.mean(cur_chs_df[f"new colocalization ch{ch1} ch{ch2}"])
                 cur_folder_result.extend([cur_percent] * len(cur_chs_df))
                 print(
@@ -239,7 +239,6 @@ def print_result(result, channels_of_interest):
       cur_folder_result = [[] for _ in range(len(channels_of_interest))]
       for file_name in np.unique((result[result["folder"] == folder])["file name"]):
         cur_file_df = result[np.array(result["folder"] == folder) * np.array(result["file name"] == file_name)]
-        cur_file_df = cur_file_df[np.array(cur_file_df["square quality"])]
         for ch in channels_of_interest:
           cur_percent = np.mean(cur_file_df[cur_file_df[f"quality ch{0}"]][f"new punctate ch{ch}"])
           cur_folder_result[ch].extend([cur_percent] * len(cur_file_df))
@@ -253,13 +252,13 @@ def print_result(result, channels_of_interest):
         cur_folder_df = result[result["temp folder"] == temp_folder]
         for ch in channels_of_interest:
             print()
-            ch_percent = np.mean(cur_folder_df[cur_folder_df["square quality"]][f"new punctate ch{ch}"])
+            ch_percent = np.mean(cur_folder_df[f"new punctate ch{ch}"])
             print(f"The overall percent punctateness for {temp_folder} in channel {ch} is {ch_percent}.")
             print()
 
     for ch in channels_of_interest:
         print()
-        ch_percent = np.mean(result[result["square quality"]][f"new punctate ch{ch}"])
+        ch_percent = np.mean(result[f"new punctate ch{ch}"])
         print(f"The overall percent punctateness in channel {ch} is {ch_percent}.")
         print()
 
@@ -276,7 +275,7 @@ def manual_print_result(manual_label_df, channels_of_interest):
             print(f"The percent colocalization for {fpath} between channels {ch1} and {ch2} is {cur_percent}.")
     for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
         ch_percent = np.mean(manual_label_df[f"colocalization ch{ch1} ch{ch2}"])
-        print(f"The ovreall percent colocalization between channels {ch1} and {ch2} is {ch_percent}.")
+        print(f"The overall percent colocalization between channels {ch1} and {ch2} is {ch_percent}.")
 
     print("2-channel new colocalization")
     # 2-channel new colocalization
@@ -304,7 +303,7 @@ def manual_print_result(manual_label_df, channels_of_interest):
             print(f"The percent colocalization for {fpath} between channels {ch1}, {ch2} and {ch3} is {cur_percent}.")
     for ch1, ch2, ch3 in itertools.combinations(channels_of_interest, 3):
         ch_percent = np.mean(manual_label_df[f"colocalization ch{ch1} ch{ch2} ch{ch3}"])
-        print(f"The ovreall percent colocalization between channels {ch1}, {ch2} and {ch3} is {ch_percent}.")
+        print(f"The overall percent colocalization between channels {ch1}, {ch2} and {ch3} is {ch_percent}.")
 
     # 3-channel new colocalization
     print("3-channel new colocalization")
@@ -519,7 +518,8 @@ class Guv:
     def add_value(self, ch_mask, ch, lipid, f):
         if self.candidate is None:
             self.values.append(np.nan)  # TBD!!!!!
-            self.puncta_param.append(Puncta([0, [], []]))
+            self.update_pos([np.nan] * 4)
+            self.puncta_param.append(Puncta(0, [], []))
         else:
             if self.old_punctate and f < self.frame_punctate:
                 score = int(predict(self.candidate, ch, f, self.model, self.img_sz, self.num_bins))
@@ -533,7 +533,7 @@ class Guv:
     def get_values(self):
         value_empty = [np.nan for _ in range(self.init_f)]
         position_empty = [np.nan for _ in range(self.init_f)]
-        puncta_param_empty = [Puncta([0, [], []]) for _ in range(self.init_f)]
+        puncta_param_empty = [Puncta(0, [], []) for _ in range(self.init_f)]
         return [self.folder, self.fname, self.img_sz, self.get_averaged_punctateness(), self.adj,
                 self.init_f] + value_empty + self.values + puncta_param_empty + self.puncta_param + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
 
@@ -573,7 +573,8 @@ class Z_Stack_Guv(Guv):
     def add_value(self, ch_mask, ch, lipid, f):
         if self.candidate is None:
             self.values.append(np.nan)  # TBD!!!!!
-            self.puncta_param.append(Puncta([0, [], []]))
+            self.update_pos([np.nan] * 4)
+            self.puncta_param.append(Puncta(0, [], []))
         else:
             if self.old_punctate and f < self.frame_punctate:
                 score = int(predict(self.candidate, ch, f, self.model, self.img_sz, self.num_bins, self.old_punctate))
@@ -593,7 +594,7 @@ class Z_Stack_Guv(Guv):
     def get_values(self):
         value_empty = [np.nan for _ in range(self.init_f)]
         position_empty = [np.nan for _ in range(self.init_f)]
-        puncta_param_empty = [Puncta([0, [], []]) for _ in range(self.init_f)]
+        puncta_param_empty = [Puncta(0, [], []) for _ in range(self.init_f)]
         return [self.folder, self.fname, self.img_sz, self.get_averaged_punctateness(), self.adj, self.init_f,
                 self.equa_frame,
                 self.equa_size] + value_empty + self.values + puncta_param_empty + self.puncta_param + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
@@ -878,16 +879,16 @@ def preprocess_for_puncta(img, threshold):
     identification.
     """
     if threshold is None:
-        io.imsave("temp1.tif", img)
-        img = cv.imread("temp1.tif", 0)
-        os.remove("temp1.tif")
-        img = cv.fastNlMeansDenoising(img, h=3)
-        img = cv.GaussianBlur(img, (3, 3), 0)
-        img_shape = img.shape
-        img = normalize(np.array([np.ravel(img)])).reshape(img_shape)
-        img = img > 1.2 * threshold_otsu(img)
-    else:
-        img = img > threshold
+        img = img - threshold
+
+    io.imsave("temp.tif", img)
+    img = cv.imread("temp.tif", 0)
+    os.remove("temp.tif")
+    img = cv.fastNlMeansDenoising(img, h=3)
+    img = cv.GaussianBlur(img, (3, 3), 0)
+    img_shape = img.shape
+    img = normalize(np.array([np.ravel(img)])).reshape(img_shape)
+    img = img >threshold_otsu(img)
     return img
 
 # Manual Colocalization
@@ -1005,9 +1006,9 @@ def preprocess_for_coloc(img):
     identification.
     """
     size = (5, 5)
-    io.imsave("temp1.tif", img)
-    img = cv.imread("temp1.tif", 0)
-    os.remove("temp1.tif")
+    io.imsave("temp.tif", img)
+    img = cv.imread("temp.tif", 0)
+    os.remove("temp.tif")
     img_shape = img.shape
     img = cv.fastNlMeansDenoising(img, h=5)
     img = cv.GaussianBlur(img, size, 0)
@@ -1120,8 +1121,6 @@ def dataset_threshold(path_list, ch_of_interest):
                     all_picture = np.concatenate((all_picture, ch[j, :, :]), axis=0)
     return 2.5 * threshold_li(all_picture)
 
-
-
 def manual_dataset_threshold(manual_label_df, ch_of_interest):
     all_picture = None
     file_list = manual_label_df["file path"].unique()
@@ -1140,4 +1139,3 @@ def manual_dataset_threshold(manual_label_df, ch_of_interest):
         else:
             all_picture = np.concatenate((all_picture, ch.reshape((-1, im.shape[1]))), axis=0)
     return threshold_li(all_picture)
- 

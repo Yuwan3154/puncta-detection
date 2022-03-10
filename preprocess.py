@@ -26,9 +26,9 @@ warnings.filterwarnings('ignore')
 print('Setup complete. Using torch %s %s' % (torch.__version__, torch.cuda.get_device_properties(0) if torch.cuda.is_available() else 'CPU'))
 
 detection_threshold = 0.6                                                                                               # The cutoff to ignore GUVs that the GUV detection algorithm is less confident about
-folder_list = [".\\data\\03-02-2022\\49.5_ DOPC_50_ DOPS_0.5_ Atto 647\\200 nM Atto 488 ALG-2",
-               ".\\data\\03-02-2022\\69.5_ DOPC_30_ DOPS_0.5_ Atto 647\\200 nM Atto 488 ALG-2",
-               ".\\data\\03-03-2022\\89.5_ DOPC_10_DOPS_0.5_ Atto\\200 nM Atto 488 ALG2"]                               # Data folder(s); list all folders cotaining .tif images to be analyzed
+folder_list = [".\\data\\11-27-21\\DOPC_DOPS_10__Atto\\200 nM ALG2",
+               ".\\data\\11-27-21\\DOPC_DOPS_30__Atto\\200 nM ALG2",
+               ".\\data\\11-27-21\\DOPC_DOPS_50__Atto"]                                                                 # Data folder(s); list all folders cotaining .tif images to be analyzed
     # [".\data\10_DOPS 89.5_DOPC 0.5_Atto\200nM ALG2",
     #          ".\data\30_DOPS 69.5_ DOPC 0.5 _Atto\200nM ALG2 A78C",
     #          ".\data\30_DOPS 69.5_ DOPC 0.5 _Atto\200nM ALG2 A78C ESCRT1",

@@ -26,8 +26,10 @@ warnings.filterwarnings('ignore')
 print('Setup complete. Using torch %s %s' % (torch.__version__, torch.cuda.get_device_properties(0) if torch.cuda.is_available() else 'CPU'))
 
 detection_threshold = 0.6                                                                                               # The cutoff to ignore GUVs that the GUV detection algorithm is less confident about
-folder_list = [".\\data\\03-01-2022\\69.5% DOPC_30% DOPS_0.5% Atto 647\\E47A_E114A_E78C_Atto 488 ALG-2_1"]              # Data folder(s); list all folders cotaining .tif images to be analyzed
-label = "03_05_22_whole_dataset_2.5_li_E47A_E114A_E78C_Atto 488 ALG-2_1"                                                # Name your output here
+folder_list = [".\\data\\11-27-21\\DOPC_DOPS_10__Atto\\200 nM ALG2",
+               ".\\data\\11-27-21\\DOPC_DOPS_30__Atto\\200 nM ALG2",
+               ".\\data\\11-27-21\\DOPC_DOPS_50__Atto"]                                                                 # Data folder(s); list all folders cotaining .tif images to be analyzed
+label = "11-27-21_whole_dataset_background_subtraction_on_03_09_22"                                                                            # Name your output here
     # [".\data\10_DOPS 89.5_DOPC 0.5_Atto\200nM ALG2",
     #          ".\data\30_DOPS 69.5_ DOPC 0.5 _Atto\200nM ALG2 A78C",
     #          ".\data\30_DOPS 69.5_ DOPC 0.5 _Atto\200nM ALG2 A78C ESCRT1",
@@ -37,6 +39,7 @@ channels_of_interest = [0, 1]                                                   
 lipid_channel = 2                                                                                                       # Enter the lipid channel (zero_indexing) for GUV recognition purposes
 series_type = Z_Stack_Series
 
+folder_list = [os.path.abspath(folder) for folder in folder_list]
 if not os.path.exists("results"):
     os.mkdir("results")
 save_path = join("results", label)
