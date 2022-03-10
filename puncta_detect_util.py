@@ -146,7 +146,8 @@ def manual_process_data(manual_label_df, channels_of_interest):
     manual_label_df = manual_label_df[["file path", "image size", "num frame", "top left x", "top left y", "bottom right x", "bottom right y"]]
     puncta_pixel_threshold = dict()
     for ch_of_interest in channels_of_interest:
-        puncta_pixel_threshold[ch_of_interest] = None
+        puncta_pixel_threshold[ch_of_interest] = manual_dataset_threshold(manual_label_df, ch_of_interest)
+        print(puncta_pixel_threshold[ch_of_interest])
 
     manual_coloc_result_cols = [f"colocalization ch{ch1} ch{ch2}" for ch1, ch2 in
                                 itertools.combinations(channels_of_interest, 2)] + [
@@ -877,9 +878,9 @@ def preprocess_for_puncta(img, threshold):
     identification.
     """
     if threshold is None:
-        io.imsave("temp.tif", img)
-        img = cv.imread("temp.tif", 0)
-        os.remove("temp.tif")
+        io.imsave("temp1.tif", img)
+        img = cv.imread("temp1.tif", 0)
+        os.remove("temp1.tif")
         img = cv.fastNlMeansDenoising(img, h=3)
         img = cv.GaussianBlur(img, (3, 3), 0)
         img_shape = img.shape
@@ -905,6 +906,7 @@ def manual_colocalization(df, chs):
     identified in all frames and 2 channels combined.
     """
     df = df.copy()
+    base_ch = 0
     for ch1, ch2 in itertools.combinations(chs, 2):
         df[f"colocalization ch{ch1} ch{ch2}"] = np.nan
         df[f"colocalization weight ch{ch1} ch{ch2}"] = np.nan
@@ -915,7 +917,7 @@ def manual_colocalization(df, chs):
                 ch1_puncta_coord, ch2_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords()
                 x1, x2, y1, y2 = manual_label_position(cur_GUV)
                 threshold = max(x2 - x1, y2 - y1) / 3
-                if ch1 == 1 or len(ch1_puncta_coord) > len(ch2_puncta_coord):
+                if ch1 == base_ch or len(ch1_puncta_coord) > len(ch2_puncta_coord):
                     ch1_puncta_coord, ch2_puncta_coord = ch2_puncta_coord, ch1_puncta_coord
                 total[i] += len(ch2_puncta_coord)
                 for puncta2 in ch2_puncta_coord:
@@ -935,15 +937,15 @@ def manual_colocalization(df, chs):
                 cur_GUV = df.iloc[i]
                 for j in range(cur_GUV["num frame"]):
                     ch1_puncta_coord, ch2_puncta_coord, ch3_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch3}"].get_puncta_coords()
-                    total[i] += len(ch2_puncta_coord)
+                    total[i] += len(ch1_puncta_coord)
                     x1, x2, y1, y2 = manual_label_position(cur_GUV)
                     threshold = max(x2 - x1, y2 - y1) / 3
-                    for puncta2 in ch2_puncta_coord:
+                    for puncta1 in ch1_puncta_coord:
                         cur_coloc = 0
-                        for puncta1 in ch1_puncta_coord:
+                        for puncta2 in ch2_puncta_coord:
                             if math.sqrt(sum((np.array(puncta2) - np.array(puncta1)) ** 2)) < threshold:
                                 for puncta3 in ch3_puncta_coord:
-                                    if math.sqrt(sum((np.array(puncta2) - np.array(puncta3)) ** 2)) < threshold:
+                                    if math.sqrt(sum((np.array(puncta1) - np.array(puncta3)) ** 2)) < threshold:
                                         cur_coloc = 1
                                         break
                                 if cur_coloc == 1:
@@ -1003,9 +1005,9 @@ def preprocess_for_coloc(img):
     identification.
     """
     size = (5, 5)
-    io.imsave("temp.tif", img)
-    img = cv.imread("temp.tif", 0)
-    os.remove("temp.tif")
+    io.imsave("temp1.tif", img)
+    img = cv.imread("temp1.tif", 0)
+    os.remove("temp1.tif")
     img_shape = img.shape
     img = cv.fastNlMeansDenoising(img, h=5)
     img = cv.GaussianBlur(img, size, 0)
@@ -1015,7 +1017,7 @@ def preprocess_for_coloc(img):
     img_max = filters.maximum_filter(img, size)
     img_min = filters.minimum_filter(img, size)
     img = img_max - img_min
-    img = img > threshold_otsu(img)
+    img = img > threshold_li(img)
     return img
 
 def new_manual_colocalization(df, chs):
@@ -1030,7 +1032,7 @@ def new_manual_colocalization(df, chs):
     """
     df = df.copy()
     for ch1, ch2 in itertools.combinations(chs, 2):
-        base_ch = 1
+        base_ch = 0
         df[f"new colocalization ch{ch1} ch{ch2}"] = np.nan
         for file_path in df["file path"].unique():
             cur_df = df[df["file path"] == file_path]
@@ -1048,7 +1050,7 @@ def new_manual_colocalization(df, chs):
                     cur_GUV = cur_df.iloc[i]
                     x1, x2, y1, y2 = manual_label_position(cur_GUV)
                     cur_GUV_img = coloc_img[y1:y2, x1:x2]
-                    if ch1 != 1 and ch2 != 1:
+                    if ch1 != base_ch and ch2 != base_ch:
                         if cur_GUV[f"puncta {j} ch{ch1}"].get_num_puncta() > cur_GUV[f"puncta {j} ch{ch2}"].get_num_puncta():
                             base_ch = ch1
                         else:
@@ -1064,7 +1066,7 @@ def new_manual_colocalization(df, chs):
 
     if len(chs) > 2:
         for ch1, ch2, ch3 in itertools.combinations(chs, 3):
-            base_ch = 1
+            base_ch = 0
             df[f"new colocalization ch{ch1} ch{ch2} ch{ch3}"] = np.nan
             for file_path in df["file path"].unique():
                 cur_df = df[df["file path"] == file_path]
@@ -1117,3 +1119,25 @@ def dataset_threshold(path_list, ch_of_interest):
                 else:
                     all_picture = np.concatenate((all_picture, ch[j, :, :]), axis=0)
     return 2.5 * threshold_li(all_picture)
+
+
+
+def manual_dataset_threshold(manual_label_df, ch_of_interest):
+    all_picture = None
+    file_list = manual_label_df["file path"].unique()
+    for i in range(len(file_list)):
+        file_path = file_list[i]
+        im = io.imread(file_path)
+        if len(im.shape) == 4:
+            ch = np.array(im[:, :, :, ch_of_interest])
+        elif len(im.shape) == 3:
+            ch = np.array(im[:, :, ch_of_interest]).reshape(1, im.shape[0], im.shape[1])
+        else:
+            raise ValueError("Input image should have 3 or 4 channels.")
+
+        if all_picture is None:
+            all_picture = ch.reshape((-1, im.shape[1]))
+        else:
+            all_picture = np.concatenate((all_picture, ch.reshape((-1, im.shape[1]))), axis=0)
+    return threshold_li(all_picture)
+ 
