@@ -24,10 +24,9 @@ from scipy.optimize import curve_fit
 import warnings
 warnings.filterwarnings('ignore')
 
-folder_list = [".\\data\\11-27-21\\DOPC_DOPS_10__Atto\\200 nM ALG2",
-               ".\\data\\11-27-21\\DOPC_DOPS_30__Atto\\200 nM ALG2",
-               ".\\data\\11-27-21\\DOPC_DOPS_50__Atto"]                                                                 # Data folder(s); list all folders cotaining .tif images to be analyzed
-label = "11-27-21_whole_dataset_background_subtraction_on_03_09_22"                                                                              # Name your output here
+folder_list = [".\\data\\01-11-22\\30_DOPS 69.5_ DOPC 0.5 _Atto\\200nM ALG2 A78C ESCRT1"]
+label = "01-11-22_30DOPS_ALG2_ESCRT1_whole_dataset_by_ch_background_subtraction_0.8detection_0.2diam_on_03_09_22"                                                                         # Name your output here
+
 if not os.path.exists("results"):
     os.mkdir("results")
 save_path = join("results", label)                                                                                      # Designate your save path here
@@ -56,9 +55,15 @@ for folder in folder_list:
 result = None
 folder_index_count = 0
 puncta_pixel_threshold = dict()
-for ch_of_interest in channels_of_interest:
-  puncta_pixel_threshold[ch_of_interest] = dataset_threshold(path_list, ch_of_interest)
-  print(puncta_pixel_threshold[ch_of_interest])
+
+for channel_of_interest in channels_of_interest:
+  puncta_pixel_threshold[channel_of_interest] = dataset_threshold_by_channel(path_list, channel_of_interest)
+  print(puncta_pixel_threshold[channel_of_interest])
+# all_ch_threshold = dataset_threshold(path_list, channels_of_interest)
+# print(all_ch_threshold)
+# for channel_of_interest in channels_of_interest:
+#   puncta_pixel_threshold[channel_of_interest] = all_ch_threshold
+
 for path in path_list:
   result, folder_index_count = process_data(path, folder_index_count, result, num_bins, channels_of_interest, lipid_channel, series_type, puncta_model, old_punctate, frame_punctate, verbose, puncta_pixel_threshold)
 
