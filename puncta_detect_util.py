@@ -5,7 +5,7 @@ import math
 import itertools
 from scipy.signal import correlate2d
 from skimage import io
-from skimage.filters import threshold_otsu, threshold_li, median, gaussian
+from skimage.filters import *
 from skimage.morphology import disk
 from skimage import measure
 from imutils import contours, grab_contours
@@ -42,11 +42,11 @@ def extract_image(imfolder, lipid_channel):
       lipid = im[:, :, :, lipid_channel]
       for j in range(len(lipid)):
             frame_file_name = os.path.join(series_folder, "{}.jpeg".format(j))
-            io.imsave(file_name=frame_file_name, arr=lipid[j, :, :])
+            io.imsave(fname=frame_file_name, arr=lipid[j, :, :])
     except IndexError:
       lipid = im[:, :, lipid_channel]
       frame_file_name = os.path.join(series_folder, "0.jpeg")
-      io.imsave(file_name=frame_file_name, arr=lipid)
+      io.imsave(fname=frame_file_name, arr=lipid)
 
 def identify_img(imfolder, yolo_model_path, thresh=0.8):
     cwd = os.getcwd()
@@ -781,7 +781,7 @@ def get_maxima(img):
     # cutoff = max(img.shape) / 4
     coords, bboxes = [], []
     for label_property in measure.regionprops(labels):
-        if label_property.area >= 5:
+        if label_property.area >= 3:
             cur_center = (int(label_property.centroid[1]), int(label_property.centroid[0]))
             # if sum(np.sqrt((cur_center - center_of_img)**2)) > cutoff:
             coords.append(cur_center)
@@ -901,18 +901,21 @@ def preprocess_for_puncta(img, background):
     identification.
     """
     if background is not None:
-        img = np.maximum(np.array(img) - background, np.zeros_like(img))
-        img = img > threshold_otsu(img)
-    else:
-        io.imsave("temp.tif", img)
-        img = cv.imread("temp.tif", 0)
-        os.remove("temp.tif")
-        img = cv.fastNlMeansDenoising(img, h=3)
-        img = cv.GaussianBlur(img, (3, 3), 0)
-        img_shape = img.shape
-        img = normalize(np.array([np.ravel(img)])).reshape(img_shape)
-        img = img > 1.2 * threshold_otsu(img)
-    return img
+        sub_img = (img - background).astype("uint16")
+        img = np.where(sub_img > img, np.zeros_like(img), sub_img)
+
+    io.imsave("temp1.tif", img)
+    img = cv.imread("temp1.tif", 0)
+    os.remove("temp1.tif")
+    img = cv.fastNlMeansDenoising(img, h=3)
+    img = cv.GaussianBlur(img, (3, 3), 0)
+    img_shape = img.shape
+    img = normalize(np.array([np.ravel(img)])).reshape(img_shape)
+    try:
+        img = img > 0.7 * threshold_minimum(img)
+        return img
+    except RuntimeError:
+        return np.zeros_like(img)
 
 # Manual Colocalization
 def manual_label_position(row_series):
@@ -966,9 +969,9 @@ def manual_colocalization(df, chs, upstream_channel):
                     threshold = max(x2 - x1, y2 - y1) / 4
                     upstream_puncta_coord = chs_puncta_coord_dict.pop(upstream_channel)
                     for upstream_puncta in upstream_puncta_coord:
-                        cur_coloc = 0
                         upstream_puncta = np.array(upstream_puncta)
                         for pair in itertools.product(zip(*chs_puncta_coord_dict.values())):
+                            pair = pair[0]
                             if len(pair) == 2:
                                 puncta1, puncta2 = np.array(pair[0]), np.array(pair[1])
                                 if math.sqrt(sum((upstream_puncta - puncta1) ** 2)) < threshold and math.sqrt(sum((upstream_puncta - puncta2) ** 2)) < threshold:
@@ -1014,7 +1017,7 @@ def new_colocalization(df, im, chs, puncta_pixel_threshold):
                                     b_y1, b_x1, b_y2, b_x2 = bbox
                                     labels = measure.label(cur_GUV_img[b_y1:b_y2+1, b_x1:b_x2+1])
                                     for label_property in measure.regionprops(labels):
-                                        if label_property.area >= 5:
+                                        if label_property.area >= 3:
                                             coloc_result[i] += 1
                                             break
                             except ValueError:
@@ -1030,9 +1033,9 @@ def preprocess_for_coloc(img, background):
     size = (5, 5)
     if background is not None:
         img = np.maximum(img - background, np.zeros_like(img))
-    # io.imsave("temp.tif", img)
-    # img = cv.imread("temp.tif", 0)
-    # os.remove("temp.tif")
+    # io.imsave("temp1.tif", img)
+    # img = cv.imread("temp1.tif", 0)
+    # os.remove("temp1.tif")
     # img_shape = img.shape
     # img = cv.fastNlMeansDenoising(img, h=5)
     # img = cv.GaussianBlur(img, size, 0)
@@ -1085,7 +1088,7 @@ def new_manual_colocalization(df, chs, upstream_channel, puncta_pixel_threshold)
                         b_y1, b_x1, b_y2, b_x2 = bbox
                         labels = measure.label(cur_GUV_img[b_y1:b_y2, b_x1:b_x2])
                         for label_property in measure.regionprops(labels):
-                            if label_property.area >= 5:
+                            if label_property.area >= 3:
                                 coloc_result[i] += 1
                                 break
             df.loc[cur_df.index, f"new colocalization ch{ch1} ch{ch2}"] = np.array(coloc_result) / np.array(df.loc[cur_df.index, f"colocalization weight ch{ch1} ch{ch2}"])
@@ -1112,7 +1115,7 @@ def new_manual_colocalization(df, chs, upstream_channel, puncta_pixel_threshold)
                             b_y1, b_x1, b_y2, b_x2 = bbox
                             labels = measure.label(cur_GUV_img[b_y1:b_y2, b_x1:b_x2])
                             for label_property in measure.regionprops(labels):
-                                if label_property.area >= 5:
+                                if label_property.area >= 3:
                                     coloc_result[i] += 1
                                     break
                 df.loc[cur_df.index, f"new colocalization ch{ch1} ch{ch2} ch{ch3}"] = np.array(coloc_result) / np.array(df.loc[cur_df.index, f"colocalization weight ch{ch1} ch{ch2} ch{ch3}"])
@@ -1160,4 +1163,4 @@ def manual_dataset_threshold(manual_label_file_path_list, channels_of_interest):
                 all_picture = chs_img
             else:
                 all_picture = np.concatenate((all_picture, chs_img), axis=0)
-    return threshold_otsu(all_picture)
+    return  threshold_li(all_picture)
