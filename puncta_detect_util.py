@@ -8,6 +8,7 @@ from skimage import io
 from skimage.filters import *
 from skimage.morphology import disk
 from skimage import measure
+from skimage.exposure import *
 from imutils import contours, grab_contours
 import scipy.ndimage.filters as filters
 from sklearn.preprocessing import StandardScaler, normalize
@@ -131,7 +132,7 @@ def process_data(imfolder, folder_index_count, result, num_bins, channels_of_int
                 cols_to_use = cur_df.columns.difference(final_df.columns).to_list()  # https://stackoverflow.com/questions/19125091/pandas-merge-how-to-avoid-duplicating-columns
                 final_df = pd.DataFrame.merge(final_df, cur_df[cols_to_use], left_index=True, right_index=True, how='outer')
             final_df = colocalization(final_df, channels_of_interest)
-            final_df = new_colocalization(final_df, im, channels_of_interest)
+            final_df = new_colocalization(final_df, im, channels_of_interest, puncta_pixel_threshold)
 
         if result is None:
             result = final_df
@@ -904,15 +905,16 @@ def preprocess_for_puncta(img, background):
         sub_img = (img - background).astype("uint16")
         img = np.where(sub_img > img, np.zeros_like(img), sub_img)
 
-    io.imsave("temp1.tif", img)
-    img = cv.imread("temp1.tif", 0)
-    os.remove("temp1.tif")
+    img = adjust_log(img)
+    io.imsave("temp.tif", img)
+    img = cv.imread("temp.tif", 0)
+    os.remove("temp.tif")
     img = cv.fastNlMeansDenoising(img, h=3)
     img = cv.GaussianBlur(img, (3, 3), 0)
-    img_shape = img.shape
-    img = normalize(np.array([np.ravel(img)])).reshape(img_shape)
+    # img_shape = img.shape
+    # img = normalize(np.array([np.ravel(img)])).reshape(img_shape)
     try:
-        img = img > 0.7 * threshold_minimum(img)
+        img = img > 0.5 * threshold_otsu(img)
         return img
     except RuntimeError:
         return np.zeros_like(img)
@@ -1032,10 +1034,11 @@ def preprocess_for_coloc(img, background):
     """
     size = (5, 5)
     if background is not None:
-        img = np.maximum(img - background, np.zeros_like(img))
-    # io.imsave("temp1.tif", img)
-    # img = cv.imread("temp1.tif", 0)
-    # os.remove("temp1.tif")
+        sub_img = (img - background).astype("uint16")
+        img = np.where(sub_img > img, np.zeros_like(img), sub_img)
+    # io.imsave("temp.tif", img)
+    # img = cv.imread("temp.tif", 0)
+    # os.remove("temp.tif")
     # img_shape = img.shape
     # img = cv.fastNlMeansDenoising(img, h=5)
     # img = cv.GaussianBlur(img, size, 0)
@@ -1046,8 +1049,11 @@ def preprocess_for_coloc(img, background):
     img_max = filters.maximum_filter(img, size)
     img_min = filters.minimum_filter(img, size)
     img = img_max - img_min
-    img = img > threshold_li(img)
-    return img
+    try:
+        img = img > 0.5 * threshold_otsu(img)
+        return img
+    except RuntimeError:
+        return np.zeros_like(img)
 
 def new_manual_colocalization(df, chs, upstream_channel, puncta_pixel_threshold):
     """
@@ -1143,7 +1149,10 @@ def dataset_threshold(path_list, channels_of_interest):
                 all_picture = chs_img
             else:
                 all_picture = np.concatenate((all_picture, chs_img), axis=0)
-    return 2.5 * threshold_li(all_picture)
+    try:
+        return threshold_minimum(all_picture)
+    except RuntimeError:
+        return None
 
 def manual_dataset_threshold(manual_label_file_path_list, channels_of_interest):
     all_picture = None
