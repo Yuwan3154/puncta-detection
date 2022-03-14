@@ -5,7 +5,7 @@ import math
 import itertools
 from scipy.signal import correlate2d
 from skimage import io
-from skimage.filters import *
+from skimage.filters import threshold_otsu, threshold_li, threshold_minimum
 from skimage.morphology import disk
 from skimage import measure
 from skimage.exposure import *
@@ -51,7 +51,7 @@ def extract_image(imfolder, lipid_channel):
 
 def identify_img(imfolder, yolo_model_path, thresh=0.8):
     cwd = os.getcwd()
-    os.chdir(".\\yolov5")
+    os.chdir("yolov5")
     file_list = []
     for i in os.listdir(imfolder):
         if i.endswith(".tif"):
