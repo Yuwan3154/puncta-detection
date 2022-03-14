@@ -26,17 +26,16 @@ warnings.filterwarnings('ignore')
 print('Setup complete. Using torch %s %s' % (torch.__version__, torch.cuda.get_device_properties(0) if torch.cuda.is_available() else 'CPU'))
 
 detection_threshold = 0.6                                                                                               # The cutoff to ignore GUVs that the GUV detection algorithm is less confident about
-folder_list = [".\\data\\03-01-2022\\69.5% DOPC_30% DOPS_0.5% Atto 647\\E47A_E114A_E78C_Atto 488 ALG-2_1"]              # Data folder(s); list all folders cotaining .tif images to be analyzed
-label = "03_05_22_whole_dataset_2.5_li_E47A_E114A_E78C_Atto 488 ALG-2_1"                                                # Name your output here
-    # [".\data\10_DOPS 89.5_DOPC 0.5_Atto\200nM ALG2",
-    #          ".\data\30_DOPS 69.5_ DOPC 0.5 _Atto\200nM ALG2 A78C",
-    #          ".\data\30_DOPS 69.5_ DOPC 0.5 _Atto\200nM ALG2 A78C ESCRT1",
-    #          ".\data\50_DOPS 49.5_ DOPC 0.5_Atto\200nM ALG2"]
+# folder_list = [".\\data\\01-11-22\\30_DOPS 69.5_ DOPC 0.5 _Atto\\200nM ALG2 A78C ESCRT1"]
+# label = "01-11-22_30DOPS_ALG2_ESCRT1_whole_dataset_minimum_thresh_denoise_gaussian_blur_0.8detection_0.25diam_on_03_09_22"
+folder_list = [""]                               # Data folder(s); list all folders cotaining .tif images to be analyzed
+label = "_whole_dataset_by_channel_2.5li_thresh_denoise_gaussian_blur_0.6detection_0.25diam_on_03_14_22"             # Name your output here
 yolo_model_path = "06062021_best.pt"                                                                                    # Designate your yolo model path here
 channels_of_interest = [0, 1]                                                                                           # Enter your protein channels (zero-indexing); if more than 1 channel is entered, result will also include colocalization analysis
 lipid_channel = 2                                                                                                       # Enter the lipid channel (zero_indexing) for GUV recognition purposes
 series_type = Z_Stack_Series
 
+folder_list = [os.path.abspath(folder) for folder in folder_list]
 if not os.path.exists("results"):
     os.mkdir("results")
 save_path = join("results", label)
@@ -61,6 +60,8 @@ for folder in folder_list:
 for path in path_list:
   extract_image(path, lipid_channel)
 
+if os.path.exists(".\\yolov5\\runs"):
+    os.remove(".\\yolov5\\runs")
 # Detect GUV using yolov5
 for path in path_list:
   identify_img(path, yolo_model_path, detection_threshold)
@@ -69,9 +70,17 @@ for path in path_list:
 result = None
 folder_index_count = 0
 puncta_pixel_threshold = dict()
-for ch_of_interest in channels_of_interest:
-  puncta_pixel_threshold[ch_of_interest] = dataset_threshold(path_list, ch_of_interest)
-  print(puncta_pixel_threshold[ch_of_interest])
+
+for channel_of_interest in channels_of_interest:
+  puncta_pixel_threshold[channel_of_interest] = dataset_threshold(path_list, channel_of_interest)
+  print(f"Combined threshold on all datasets for channel {channel_of_interest} is:", puncta_pixel_threshold[channel_of_interest])
+# all_ch_threshold = dataset_threshold(path_list, channels_of_interest)
+# print(all_ch_threshold)
+# for channel_of_interest in channels_of_interest:
+#   puncta_pixel_threshold[channel_of_interest] = all_ch_threshold
+# for channel_of_interest in channels_of_interest:
+#   puncta_pixel_threshold[channel_of_interest] = None
+
 for path in path_list:
   result, folder_index_count = process_data(path, folder_index_count, result, num_bins, channels_of_interest, lipid_channel, series_type, puncta_model, old_punctate, frame_punctate, verbose, puncta_pixel_threshold)
 
