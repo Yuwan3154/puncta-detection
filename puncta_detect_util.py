@@ -5,7 +5,7 @@ import math
 import itertools
 from scipy.signal import correlate2d
 from skimage import io
-from skimage.filters import *
+from skimage.filters import threshold_otsu, threshold_li, threshold_minimum, median, gaussian
 from skimage.morphology import disk
 from skimage import measure
 from skimage.exposure import *
@@ -51,7 +51,7 @@ def extract_image(imfolder, lipid_channel):
 
 def identify_img(imfolder, yolo_model_path, thresh=0.8):
     cwd = os.getcwd()
-    os.chdir(".\\yolov5")
+    os.chdir("yolov5")
     file_list = []
     for i in os.listdir(imfolder):
         if i.endswith(".tif"):
@@ -93,12 +93,12 @@ def process_data(imfolder, folder_index_count, result, num_bins, channels_of_int
             else:
                 raise ValueError("Input image should have 3 or 4 channels.")
             size = (5, 5)
-            label_folder = ".\\yolov5\\runs\\detect\\exp{}".format(folder_index(folder_index_count))
+            label_folder = os.path.sep.join(["yolov5", "runs", "detect", "exp{}".format(folder_index(folder_index_count))])
             # defines local maxima in the lipid channel
             num_frame = len(lipid)
             cur_series = series_type(ch, lipid, imfolder, file_name, puncta_model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold[channel_of_interest])
             for j in range(num_frame):
-                label_file_name = os.path.join(label_folder, "labels\\{}.txt".format(j))
+                label_file_name = os.path.sep.join([label_folder, "labels", "{}.txt".format(j)])
                 try:
                     labels = pd.read_csv(label_file_name, sep=" ", header=None)
                     labels = np.array(labels)
@@ -211,9 +211,9 @@ def manual_process_data(manual_label_df_file_path, channels_of_interest, upstrea
     manual_label_df = new_manual_colocalization(manual_label_df, channels_of_interest, upstream_channel, puncta_pixel_threshold)
     return manual_label_df
 
-def print_result(result, channels_of_interest):
-    result = result[result["square quality"]]
-    result["temp folder"] = list(map(lambda f: os.path.sep.join(f.split(os.path.sep)[:-2]), result["folder"]))
+def print_result(result, channels_of_interest, detail=True):
+    result = result[result["square quality"] * result[f"quality ch{channels_of_interest[0]}"]]
+    result["temp folder"] = list(map(lambda f: os.path.sep.join(f.split(os.path.sep)[:-1]), result["folder"]))
 
     print("2-channel colocalization")
     # 2-channel colocalization
@@ -224,11 +224,22 @@ def print_result(result, channels_of_interest):
             for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
                 cur_chs_df = cur_file_df[cur_file_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()]
                 cur_percent = np.mean(cur_chs_df[f"colocalization ch{ch1} ch{ch2}"])
+                cur_weight = np.mean(cur_chs_df[f"colocalization weight ch{ch1} ch{ch2}"])
                 cur_folder_result.extend([cur_percent] * len(cur_chs_df))
-                print(f"The percent colocalization for {folder}{file_name} between channels {ch1} and {ch2} is {cur_percent}.")
-        print()
-        print(f"The percent colocalization for {folder} between channels {ch1} and {ch2} is {np.mean(cur_folder_result)}.")
-        print()
+                if detail:
+                    print(f"The percent colocalization for {folder}{file_name} between channels {ch1} and {ch2} is {cur_percent} with average weight {cur_weight}.")
+        # if detail:
+        #     print()
+        #     print(f"The percent colocalization for {folder} between channels {ch1} and {ch2} is {np.mean(cur_folder_result)}.")
+        #     print()
+
+    for temp_folder in np.unique(result["temp folder"]):
+        cur_folder_df = result[result["temp folder"] == temp_folder]
+        for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
+            print()
+            ch_percent = np.mean(cur_folder_df[cur_folder_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()][f"colocalization ch{ch1} ch{ch2}"])
+            print(f"The overall percent colocalization for {temp_folder} between channels {ch1} and {ch2} is {ch_percent}.")
+            print()
 
     for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
         print()
@@ -246,30 +257,45 @@ def print_result(result, channels_of_interest):
                 cur_chs_df = cur_file_df[cur_file_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()]
                 cur_percent = np.mean(cur_chs_df[f"new colocalization ch{ch1} ch{ch2}"])
                 cur_folder_result.extend([cur_percent] * len(cur_chs_df))
-                print(f"The percent new colocalization for {folder}{file_name} between channels {ch1} and {ch2} is {cur_percent}.")
-        print()
-        print(f"The percent new colocalization for {folder} between channels {ch1} and {ch2} is {np.mean(cur_folder_result)}.")
-        print()
+                if detail:
+                    print(f"The percent new colocalization for {folder}{file_name} between channels {ch1} and {ch2} is {cur_percent}.")
+        # if detail:
+        #     print()
+        #     print(f"The percent new colocalization for {folder} between channels {ch1} and {ch2} is {np.mean(cur_folder_result)}.")
+        #     print()
+
+    for temp_folder in np.unique(result["temp folder"]):
+            cur_folder_df = result[result["temp folder"] == temp_folder]
+            for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
+                print()
+                ch_percent = np.mean(cur_folder_df[cur_folder_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()][f"new colocalization ch{ch1} ch{ch2}"])
+                print(f"The overall percent new colocalization for {temp_folder} between channels {ch1} and {ch2} is {ch_percent}.")
+                print()
 
     for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
         print()
         ch_percent = np.mean(result[result[f"colocalization weight ch{ch1} ch{ch2}"].notna()][f"new colocalization ch{ch1} ch{ch2}"])
         print(f"The overall percent new colocalization between channels {ch1} and {ch2} is {ch_percent}.")
         print()
-
+    
+    
+    
     print("channel punctateness")
     # channel punctateness
     for folder in np.unique(result["folder"]):
-      cur_folder_result = [[] for _ in range(len(channels_of_interest))]
+      cur_folder_result = dict([(ch, []) for ch in channels_of_interest])
       for file_name in np.unique((result[result["folder"] == folder])["file name"]):
         cur_file_df = result[np.array(result["folder"] == folder) * np.array(result["file name"] == file_name)]
         for ch in channels_of_interest:
-          cur_percent = np.mean(cur_file_df[cur_file_df[f"quality ch{0}"]][f"new punctate ch{ch}"])
+          cur_percent = np.mean(cur_file_df[cur_file_df[f"quality ch{ch}"]][f"new punctate ch{ch}"])
           cur_folder_result[ch].extend([cur_percent] * len(cur_file_df))
-          print(f"The percent punctateness for {folder}{file_name} in channel {ch} is {cur_percent}.")
+          if detail:
+            print(f"The percent punctateness for {folder}{file_name} in channel {ch} is {cur_percent}.")
       for ch in channels_of_interest:
-        print()
-        print(f"The percent punctateness for {folder} in channel {ch} is {np.mean(cur_folder_result[ch])}.")
+        if detail:
+            print()
+            print(f"The percent punctateness for {folder} in channel {ch} is {np.mean(cur_folder_result[ch])}.")
+            print()
 
     for temp_folder in np.unique(result["temp folder"]):
         cur_folder_df = result[result["temp folder"] == temp_folder]
@@ -285,7 +311,7 @@ def print_result(result, channels_of_interest):
         print(f"The overall percent punctateness in channel {ch} is {ch_percent}.")
         print()
 
-def manual_print_result(manual_label_df, channels_of_interest):
+def manual_print_result(manual_label_df, channels_of_interest, detail=True):
     print("2-channel colocalization")
     # 2-channel colocalization
     for file_path in np.unique(manual_label_df["file path"]):
@@ -295,7 +321,8 @@ def manual_print_result(manual_label_df, channels_of_interest):
                 np.array(cur_file_df[f"new punctate ch{ch1}"]) * np.array(cur_file_df[f"new punctate ch{ch2}"])]
             cur_chs_df = cur_chs_df[cur_chs_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()]
             cur_percent = np.mean(cur_chs_df[f"colocalization ch{ch1} ch{ch2}"])
-            print(f"The percent colocalization for {file_path} between channels {ch1} and {ch2} is {cur_percent}.")
+            if detail:
+                print(f"The percent colocalization for {file_path} between channels {ch1} and {ch2} is {cur_percent}.")
     for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
         ch_percent = np.mean(manual_label_df[f"colocalization ch{ch1} ch{ch2}"])
         print(f"The overall percent colocalization between channels {ch1} and {ch2} is {ch_percent}.")
@@ -309,7 +336,8 @@ def manual_print_result(manual_label_df, channels_of_interest):
                 np.array(cur_file_df[f"new punctate ch{ch1}"]) * np.array(cur_file_df[f"new punctate ch{ch2}"])]
             cur_chs_df = cur_chs_df[cur_chs_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()]
             cur_percent = np.mean(cur_chs_df[f"new colocalization ch{ch1} ch{ch2}"])
-            print(f"The percent new colocalization for {file_path} between channels {ch1} and {ch2} is {cur_percent}.")
+            if detail:
+                print(f"The percent new colocalization for {file_path} between channels {ch1} and {ch2} is {cur_percent}.")
     for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
         ch_percent = np.mean(manual_label_df[f"new colocalization ch{ch1} ch{ch2}"])
         print(f"The overall percent new colocalization between channels {ch1} and {ch2} is {ch_percent}.")
@@ -323,7 +351,8 @@ def manual_print_result(manual_label_df, channels_of_interest):
                 cur_file_df[f"new punctate ch{ch2}"]) * np.array(cur_file_df[f"new punctate ch{ch3}"])]
             cur_chs_df = cur_chs_df[cur_chs_df[f"colocalization weight ch{ch1} ch{ch2} ch{ch3}"].notna()]
             cur_percent = np.mean(cur_chs_df[f"colocalization ch{ch1} ch{ch2} ch{ch3}"])
-            print(f"The percent colocalization for {file_path} between channels {ch1}, {ch2} and {ch3} is {cur_percent}.")
+            if detail:
+                print(f"The percent colocalization for {file_path} between channels {ch1}, {ch2} and {ch3} is {cur_percent}.")
     for ch1, ch2, ch3 in itertools.combinations(channels_of_interest, 3):
         ch_percent = np.mean(manual_label_df[f"colocalization ch{ch1} ch{ch2} ch{ch3}"])
         print(f"The overall percent colocalization between channels {ch1}, {ch2} and {ch3} is {ch_percent}.")
@@ -337,7 +366,8 @@ def manual_print_result(manual_label_df, channels_of_interest):
                 cur_file_df[f"new punctate ch{ch2}"]) * np.array(cur_file_df[f"new punctate ch{ch3}"])]
             cur_chs_df = cur_chs_df[cur_chs_df[f"colocalization weight ch{ch1} ch{ch2} ch{ch3}"].notna()]
             cur_percent = np.mean(cur_chs_df[f"new colocalization ch{ch1} ch{ch2} ch{ch3}"])
-            print(f"The percent new colocalization for {file_path} between channels {ch1}, {ch2} and {ch3} is {cur_percent}.")
+            if detail:
+                print(f"The percent new colocalization for {file_path} between channels {ch1}, {ch2} and {ch3} is {cur_percent}.")
     for ch1, ch2, ch3 in itertools.combinations(channels_of_interest, 3):
         ch_percent = np.mean(manual_label_df[f"new colocalization ch{ch1} ch{ch2} ch{ch3}"])
         print(f"The overall percent new colocalization between channels {ch1}, {ch2} and {ch3} is {ch_percent}.")
@@ -355,7 +385,7 @@ def get_coord(xywh, img_sz=None):
     x, y, half_w, half_h = xywh[0], xywh[1], xywh[2] / 2, xywh[3] / 2
     x1, y1, x2, y2 = x - half_w, y - half_h, x + half_w, y + half_h
     if img_sz is not None:
-        return max(0, round(x1 * img_sz)), min(img_sz, round(x2 * img_sz)), max(0, round(y1 * img_sz)), min(img_sz,round(y2 * img_sz))
+        return max(0, int(x1 * img_sz)), min(img_sz, int(x2 * img_sz)), max(0, int(y1 * img_sz)), min(img_sz, int(y2 * img_sz))
     else:
         return int(x1), int(x2), int(y1), int(y2)
 
@@ -474,8 +504,7 @@ def quantify(xywh, c1, lipid, f, img_sz, detection=False):
         except IndexError:
             pass
         try:
-            xy = np.mgrid[0:x:1, 0:y:1].reshape(2,
-                                                -1).T  # src: https://stackoverflow.com/questions/32208359/is-there-a-multi-dimensional-version-of-arange-linspace-in-numpy
+            xy = np.mgrid[0:x:1, 0:y:1].reshape(2, -1).T  # src: https://stackoverflow.com/questions/32208359/is-there-a-multi-dimensional-version-of-arange-linspace-in-numpy
             c1av = np.average([c1_sec[y, x] for (x, y) in xy if inner_r < (x - c_x) ** 2 + (y - c_y) ** 2 < outer_r])
         except NameError:
             pass
@@ -557,8 +586,7 @@ class Guv:
         value_empty = [np.nan for _ in range(self.init_f)]
         position_empty = [np.nan for _ in range(self.init_f)]
         puncta_param_empty = [Puncta(0, [], []) for _ in range(self.init_f)]
-        return [self.folder, self.file_name, self.img_sz, self.get_averaged_punctateness(), self.adj,
-                self.init_f] + value_empty + self.values + puncta_param_empty + self.puncta_param + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
+        return [self.folder, self.file_name, self.img_sz, self.get_averaged_punctateness(), self.adj, self.init_f] + value_empty + self.values + puncta_param_empty + self.puncta_param + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
 
     def get_averaged_punctateness(self):
         if np.isnan(self.punctate):
@@ -618,9 +646,7 @@ class Z_Stack_Guv(Guv):
         value_empty = [np.nan for _ in range(self.init_f)]
         position_empty = [np.nan for _ in range(self.init_f)]
         puncta_param_empty = [Puncta(0, [], []) for _ in range(self.init_f)]
-        return [self.folder, self.file_name, self.img_sz, self.get_averaged_punctateness(), self.adj, self.init_f,
-                self.equa_frame,
-                self.equa_size] + value_empty + self.values + puncta_param_empty + self.puncta_param + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
+        return [self.folder, self.file_name, self.img_sz, self.get_averaged_punctateness(), self.adj, self.init_f,self.equa_frame, self.equa_size] + value_empty + self.values + puncta_param_empty + self.puncta_param + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
 
 class Series:
     """A class storing the GUVs from the same series."""
@@ -696,12 +722,8 @@ class Series:
 
     def get_col_names(self, ch):
         return ["folder", "file name", "image size", f"punctateness ch{ch}", "adjacent", "initial frame"] + [
-            f"value {i} ch{ch}" for i in range(self.num_frame)] + [f"puncta {i} ch{ch}" for i in
-                                                                   range(self.num_frame)] + [f"x {i}" for i in
-                                                                                             range(self.num_frame)] + [
-                   f"y {i}" for i in range(self.num_frame)] + [f"w {i}" for i in range(self.num_frame)] + [f"h {i}" for
-                                                                                                           i in range(
-                self.num_frame)]
+            f"value {i} ch{ch}" for i in range(self.num_frame)] + [f"puncta {i} ch{ch}" for i in range(self.num_frame)] + [f"x {i}" for i in range(self.num_frame)] + [
+                   f"y {i}" for i in range(self.num_frame)] + [f"w {i}" for i in range(self.num_frame)] + [f"h {i}" for i in range(self.num_frame)]
 
 class Z_Stack_Series(Series):
 
@@ -749,9 +771,7 @@ class Z_Stack_Series(Series):
         return ["folder", "file name", "image size", f"punctateness ch{ch}", "adjacent", "initial frame",
                 "equatorial frame", "equatorial size"] + [f"value {i} ch{ch}" for i in range(self.num_frame)] + [
                    f"puncta {i} ch{ch}" for i in range(self.num_frame)] + [f"x {i}" for i in range(self.num_frame)] + [
-                   f"y {i}" for i in range(self.num_frame)] + [f"w {i}" for i in range(self.num_frame)] + [f"h {i}" for
-                                                                                                           i in range(
-                self.num_frame)]
+                   f"y {i}" for i in range(self.num_frame)] + [f"w {i}" for i in range(self.num_frame)] + [f"h {i}" for i in range(self.num_frame)]
 
 class Puncta:
     def __init__(self, num_puncta, puncta_coords, puncta_bbox):
@@ -765,7 +785,7 @@ class Puncta:
     def get_puncta_coords(self):
         return self.puncta_coords
 
-    def get_puncta_bbox(self):
+    def get_puncta_bboxes(self):
         return self.puncta_bbox
 
 # Puncta Quant
@@ -782,7 +802,7 @@ def get_maxima(img):
     # cutoff = max(img.shape) / 4
     coords, bboxes = [], []
     for label_property in measure.regionprops(labels):
-        if label_property.area >= 3:
+        if label_property.area >= 5:
             cur_center = (int(label_property.centroid[1]), int(label_property.centroid[0]))
             # if sum(np.sqrt((cur_center - center_of_img)**2)) > cutoff:
             coords.append(cur_center)
@@ -905,16 +925,17 @@ def preprocess_for_puncta(img, background):
         sub_img = (img - background).astype("uint16")
         img = np.where(sub_img > img, np.zeros_like(img), sub_img)
 
-    img = adjust_log(img)
-    io.imsave("temp.tif", img)
-    img = cv.imread("temp.tif", 0)
-    os.remove("temp.tif")
+    size = (5, 5)
+    io.imsave("temp1.tif", img)
+    img = cv.imread("temp1.tif", 0)
+    os.remove("temp1.tif")
     img = cv.fastNlMeansDenoising(img, h=3)
-    img = cv.GaussianBlur(img, (3, 3), 0)
+    img = cv.GaussianBlur(img, size, 0)
+    img = cv.equalizeHist(img)
     # img_shape = img.shape
     # img = normalize(np.array([np.ravel(img)])).reshape(img_shape)
     try:
-        img = img > 0.5 * threshold_otsu(img)
+        img = img > 1.1 * threshold_otsu(img)
         return img
     except RuntimeError:
         return np.zeros_like(img)
@@ -1015,11 +1036,11 @@ def new_colocalization(df, im, chs, puncta_pixel_threshold):
                                 x1, x2, y1, y2 = get_coord([cur_GUV[f"x {j}"], cur_GUV[f"y {j}"], cur_GUV[f"w {j}"], cur_GUV[f"h {j}"]], img_sz=img_sz)
                                 cur_GUV_img = coloc_img[y1:y2, x1:x2]
                                 base_ch = ch1 if cur_GUV[f"puncta {j} ch{ch1}"].get_num_puncta() > cur_GUV[f"puncta {j} ch{ch2}"].get_num_puncta() else ch2
-                                for bbox in cur_GUV[f"puncta {j} ch{base_ch}"].get_puncta_bbox():
+                                for bbox in cur_GUV[f"puncta {j} ch{base_ch}"].get_puncta_bboxes():
                                     b_y1, b_x1, b_y2, b_x2 = bbox
                                     labels = measure.label(cur_GUV_img[b_y1:b_y2+1, b_x1:b_x2+1])
                                     for label_property in measure.regionprops(labels):
-                                        if label_property.area >= 3:
+                                        if label_property.area >= 5:
                                             coloc_result[i] += 1
                                             break
                             except ValueError:
@@ -1032,25 +1053,24 @@ def preprocess_for_coloc(img, background):
     Convert the given 2D image into a preprocessed image for puncta
     identification.
     """
-    size = (5, 5)
     if background is not None:
         sub_img = (img - background).astype("uint16")
         img = np.where(sub_img > img, np.zeros_like(img), sub_img)
-    # io.imsave("temp.tif", img)
-    # img = cv.imread("temp.tif", 0)
-    # os.remove("temp.tif")
-    # img_shape = img.shape
-    # img = cv.fastNlMeansDenoising(img, h=5)
+    size = (5, 5)
+    io.imsave("temp1.tif", img)
+    img = cv.imread("temp1.tif", 0)
+    os.remove("temp1.tif")
+    img = cv.fastNlMeansDenoising(img, h=3)
     # img = cv.GaussianBlur(img, size, 0)
+    img = cv.equalizeHist(img)
     # img = normalize(np.array([np.ravel(img)])).reshape(img_shape)
     # img = cv.erode(img, None, iterations=2)
     # img = cv.dilate(img, None, iterations=2)
-    img = gaussian(img)
     img_max = filters.maximum_filter(img, size)
     img_min = filters.minimum_filter(img, size)
     img = img_max - img_min
     try:
-        img = img > 0.5 * threshold_otsu(img)
+        img = img > 1.1 * threshold_otsu(img)
         return img
     except RuntimeError:
         return np.zeros_like(img)
@@ -1085,16 +1105,16 @@ def new_manual_colocalization(df, chs, upstream_channel, puncta_pixel_threshold)
                     cur_GUV_img = coloc_img[y1:y2, x1:x2]
                     if ch1 != upstream_channel and ch2 != upstream_channel:
                         if cur_GUV[f"puncta {j} ch{ch1}"].get_num_puncta() > cur_GUV[f"puncta {j} ch{ch2}"].get_num_puncta():
-                            cur_bbox = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_bbox()
+                            cur_bbox = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_bboxes()
                         else:
-                            cur_bbox = cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_bbox()
+                            cur_bbox = cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_bboxes()
                     else:
-                        cur_bbox = cur_GUV[f"puncta {j} ch{upstream_channel}"].get_puncta_bbox()
+                        cur_bbox = cur_GUV[f"puncta {j} ch{upstream_channel}"].get_puncta_bboxes()
                     for bbox in cur_bbox:
                         b_y1, b_x1, b_y2, b_x2 = bbox
                         labels = measure.label(cur_GUV_img[b_y1:b_y2, b_x1:b_x2])
                         for label_property in measure.regionprops(labels):
-                            if label_property.area >= 3:
+                            if label_property.area >= 5:
                                 coloc_result[i] += 1
                                 break
             df.loc[cur_df.index, f"new colocalization ch{ch1} ch{ch2}"] = np.array(coloc_result) / np.array(df.loc[cur_df.index, f"colocalization weight ch{ch1} ch{ch2}"])
@@ -1117,11 +1137,11 @@ def new_manual_colocalization(df, chs, upstream_channel, puncta_pixel_threshold)
                         cur_GUV = cur_df.iloc[i]
                         x1, x2, y1, y2 = manual_label_position(cur_GUV)
                         cur_GUV_img = coloc_img[y1:y2, x1:x2]
-                        for bbox in cur_GUV[f"puncta {j} ch{upstream_channel}"].get_puncta_bbox():
+                        for bbox in cur_GUV[f"puncta {j} ch{upstream_channel}"].get_puncta_bboxes():
                             b_y1, b_x1, b_y2, b_x2 = bbox
                             labels = measure.label(cur_GUV_img[b_y1:b_y2, b_x1:b_x2])
                             for label_property in measure.regionprops(labels):
-                                if label_property.area >= 3:
+                                if label_property.area >= 5:
                                     coloc_result[i] += 1
                                     break
                 df.loc[cur_df.index, f"new colocalization ch{ch1} ch{ch2} ch{ch3}"] = np.array(coloc_result) / np.array(df.loc[cur_df.index, f"colocalization weight ch{ch1} ch{ch2} ch{ch3}"])
@@ -1150,7 +1170,7 @@ def dataset_threshold(path_list, channels_of_interest):
             else:
                 all_picture = np.concatenate((all_picture, chs_img), axis=0)
     try:
-        return threshold_minimum(all_picture)
+        return 1.5 * threshold_li(all_picture)
     except RuntimeError:
         return None
 
@@ -1172,4 +1192,4 @@ def manual_dataset_threshold(manual_label_file_path_list, channels_of_interest):
                 all_picture = chs_img
             else:
                 all_picture = np.concatenate((all_picture, chs_img), axis=0)
-    return  threshold_li(all_picture)
+    return 1.5 * threshold_li(all_picture)

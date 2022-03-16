@@ -24,16 +24,8 @@ from scipy.optimize import curve_fit
 import warnings
 warnings.filterwarnings('ignore')
 
-folder_list = [".\\data\\11-27-21\\DOPC_DOPS_10__Atto\\200 nM ALG2",
-               ".\\data\\11-27-21\\DOPC_DOPS_30__Atto\\200 nM ALG2",
-               ".\\data\\11-27-21\\DOPC_DOPS_50__Atto",
-               ".\\data\\01-11-22\\10_DOPS 89.5_DOPC 0.5_Atto\\200nM ALG2",
-               ".\\data\\01-11-22\\30_DOPS 69.5_ DOPC 0.5 _Atto\\200nM ALG2 A78C",
-               ".\\data\\01-11-22\\50_DOPS 49.5_ DOPC 0.5_Atto\\200nM ALG2",
-               ".\\data\\03-02-2022\\49.5_ DOPC_50_ DOPS_0.5_ Atto 647\\200 nM Atto 488 ALG-2",
-               ".\\data\\03-02-2022\\69.5_ DOPC_30_ DOPS_0.5_ Atto 647\\200 nM Atto 488 ALG-2",
-               ".\\data\\03-03-2022\\89.5_ DOPC_10_DOPS_0.5_ Atto\\200 nM Atto 488 ALG2"]                               # Data folder(s); list all folders cotaining .tif images to be analyzed
-label = "all_ALG-2_whole_dataset_by_channel_0.5minimum_log_contrast_thresh_denoise_gaussian_blur_0.8detection_0.25diam_on_03_11_22"  # Name your output here                                                                   # Name your output here
+folder_list = [os.path.sep.join(["data", "03-11-2022", "69.5% DOPC_30% DOPS_0.5% Atto", "69.5% DOPC_30% DOPS_0.5% Atto", "200 nM Atto 488 ALG-2_100 nM Cy3 ALIX TEV Strep"])]
+label = "03-11-22_by_ch_1.5li_backsub_ALG-2_ALIX_TEV_Strep_denoise_gaussian_eqhist_1.1otsu_0.6detection_0.25diam_on_03_15_22"             # Name your output here
 
 if not os.path.exists("results"):
     os.mkdir("results")
@@ -64,12 +56,12 @@ result = None
 folder_index_count = 0
 puncta_pixel_threshold = dict()
 for channel_of_interest in channels_of_interest:
-  puncta_pixel_threshold[channel_of_interest] = dataset_threshold(path_list, channel_of_interest)
-  print(puncta_pixel_threshold[channel_of_interest])
+ puncta_pixel_threshold[channel_of_interest] = dataset_threshold(path_list, channel_of_interest)
+ print(f"Combined threshold on all datasets for channel {channel_of_interest} is:", puncta_pixel_threshold[channel_of_interest])
 # all_ch_threshold = dataset_threshold(path_list, channels_of_interest)
 # print(all_ch_threshold)
 # for channel_of_interest in channels_of_interest:
-#   puncta_pixel_threshold[channel_of_interest] = all_ch_threshold
+#     puncta_pixel_threshold[channel_of_interest] = all_ch_threshold
 
 for path in path_list:
   result, folder_index_count = process_data(path, folder_index_count, result, num_bins, channels_of_interest, lipid_channel, series_type, puncta_model, old_punctate, frame_punctate, verbose, puncta_pixel_threshold)
