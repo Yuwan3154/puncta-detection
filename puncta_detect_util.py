@@ -929,8 +929,8 @@ def preprocess_for_puncta(img, background):
     io.imsave("temp1.tif", img)
     img = cv.imread("temp1.tif", 0)
     os.remove("temp1.tif")
-    img = cv.fastNlMeansDenoising(img, h=2)
-    # img = cv.GaussianBlur(img, size, 0)
+    img = cv.fastNlMeansDenoising(img, h=3)
+    img = cv.GaussianBlur(img, size, 0)
     img = cv.equalizeHist(img)
     # img_shape = img.shape
     # img = normalize(np.array([np.ravel(img)])).reshape(img_shape)
@@ -1060,7 +1060,7 @@ def preprocess_for_coloc(img, background):
     io.imsave("temp1.tif", img)
     img = cv.imread("temp1.tif", 0)
     os.remove("temp1.tif")
-    img = cv.fastNlMeansDenoising(img, h=2)
+    img = cv.fastNlMeansDenoising(img, h=3)
     # img = cv.GaussianBlur(img, size, 0)
     img = cv.equalizeHist(img)
     # img = normalize(np.array([np.ravel(img)])).reshape(img_shape)
@@ -1170,7 +1170,7 @@ def dataset_threshold(path_list, channels_of_interest):
             else:
                 all_picture = np.concatenate((all_picture, chs_img), axis=0)
     try:
-        return 2 * threshold_li(all_picture)
+        return 1.5 * threshold_li(all_picture)
     except RuntimeError:
         return None
 
@@ -1192,4 +1192,4 @@ def manual_dataset_threshold(manual_label_file_path_list, channels_of_interest):
                 all_picture = chs_img
             else:
                 all_picture = np.concatenate((all_picture, chs_img), axis=0)
-    return 2 * threshold_li(all_picture)
+    return 1.5 * threshold_li(all_picture)

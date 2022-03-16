@@ -25,7 +25,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 folder_list = [os.path.sep.join(["data", "03-11-2022", "69.5% DOPC_30% DOPS_0.5% Atto", "69.5% DOPC_30% DOPS_0.5% Atto", "200 nM Atto 488 ALG-2_100 nM Cy3 ALIX TEV Strep"])]
-label = "03-11-22_by_ch_2li_backsub_ALG-2_ALIX_TEV_Strep_denoise_eqhist_1.1otsu_0.6detection_0.25diam_on_03_15_22"             # Name your output here
+label = "03-11-22_by_ch_1.5li_backsub_ALG-2_ALIX_TEV_Strep_denoise_gaussian_eqhist_1.1otsu_0.6detection_0.25diam_on_03_15_22"             # Name your output here
 
 if not os.path.exists("results"):
     os.mkdir("results")
