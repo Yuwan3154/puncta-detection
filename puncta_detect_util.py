@@ -211,8 +211,10 @@ def manual_process_data(manual_label_df_file_path, channels_of_interest, upstrea
     manual_label_df = new_manual_colocalization(manual_label_df, channels_of_interest, upstream_channel, puncta_pixel_threshold)
     return manual_label_df
 
-def print_result(result, channels_of_interest, detail=True):
-    result = result[result["square quality"] * result[f"quality ch{channels_of_interest[0]}"]]
+def print_result(result, channels_of_interest, detail=True, frame_quality=True):
+    result = result[result["square quality"]]
+    if frame_quality:
+        result = result[result[f"quality ch{channels_of_interest[0]}"]]
     result["temp folder"] = list(map(lambda f: os.path.sep.join(f.split(os.path.sep)[:-1]), result["folder"]))
 
     print("2-channel colocalization")
@@ -1061,7 +1063,7 @@ def preprocess_for_coloc(img, background):
     img = cv.imread("temp1.tif", 0)
     os.remove("temp1.tif")
     img = cv.fastNlMeansDenoising(img, h=3)
-    # img = cv.GaussianBlur(img, size, 0)
+    img = cv.GaussianBlur(img, size, 0)
     img = cv.equalizeHist(img)
     # img = normalize(np.array([np.ravel(img)])).reshape(img_shape)
     # img = cv.erode(img, None, iterations=2)
@@ -1170,7 +1172,7 @@ def dataset_threshold(path_list, channels_of_interest):
             else:
                 all_picture = np.concatenate((all_picture, chs_img), axis=0)
     try:
-        return 1.5 * threshold_li(all_picture)
+        return 2.5 * threshold_li(all_picture)
     except RuntimeError:
         return None
 
@@ -1192,4 +1194,4 @@ def manual_dataset_threshold(manual_label_file_path_list, channels_of_interest):
                 all_picture = chs_img
             else:
                 all_picture = np.concatenate((all_picture, chs_img), axis=0)
-    return 1.5 * threshold_li(all_picture)
+    return 2.5 * threshold_li(all_picture)
