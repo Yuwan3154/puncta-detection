@@ -24,8 +24,8 @@ from scipy.optimize import curve_fit
 import warnings
 warnings.filterwarnings('ignore')
 
-folder_list = [""]                               # Data folder(s); list all folders cotaining .tif images to be analyzed
-label = "_whole_dataset_by_channel_2.5li_thresh_denoise_gaussian_blur_0.6detection_0.25diam_on_03_14_22"  # Name your output here                                                                   # Name your output here
+folder_list = [os.path.sep.join(["data", "03-11-2022", "69.5% DOPC_30% DOPS_0.5% Atto", "69.5% DOPC_30% DOPS_0.5% Atto", "200 nM Atto 488 ALG-2_100 nM Cy3 ALIX TEV Strep"])]
+label = "03-11-22_by_ch_2li_backsub_ALG-2_ALIX_TEV_Strep_denoise_eqhist_1.1otsu_0.6detection_0.25diam_on_03_15_22"             # Name your output here
 
 if not os.path.exists("results"):
     os.mkdir("results")
@@ -56,12 +56,12 @@ result = None
 folder_index_count = 0
 puncta_pixel_threshold = dict()
 for channel_of_interest in channels_of_interest:
-  puncta_pixel_threshold[channel_of_interest] = dataset_threshold(path_list, channel_of_interest)
-  print(f"Combined threshold on all datasets for channel {channel_of_interest} is:", puncta_pixel_threshold[channel_of_interest])
+ puncta_pixel_threshold[channel_of_interest] = dataset_threshold(path_list, channel_of_interest)
+ print(f"Combined threshold on all datasets for channel {channel_of_interest} is:", puncta_pixel_threshold[channel_of_interest])
 # all_ch_threshold = dataset_threshold(path_list, channels_of_interest)
 # print(all_ch_threshold)
 # for channel_of_interest in channels_of_interest:
-#   puncta_pixel_threshold[channel_of_interest] = all_ch_threshold
+#     puncta_pixel_threshold[channel_of_interest] = all_ch_threshold
 
 for path in path_list:
   result, folder_index_count = process_data(path, folder_index_count, result, num_bins, channels_of_interest, lipid_channel, series_type, puncta_model, old_punctate, frame_punctate, verbose, puncta_pixel_threshold)

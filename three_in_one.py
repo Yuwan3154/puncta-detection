@@ -28,12 +28,12 @@ print('Setup complete. Using torch %s %s' % (torch.__version__, torch.cuda.get_d
 detection_threshold = 0.6                                                                                               # The cutoff to ignore GUVs that the GUV detection algorithm is less confident about
 # folder_list = [".\\data\\01-11-22\\30_DOPS 69.5_ DOPC 0.5 _Atto\\200nM ALG2 A78C ESCRT1"]
 # label = "01-11-22_30DOPS_ALG2_ESCRT1_whole_dataset_minimum_thresh_denoise_gaussian_blur_0.8detection_0.25diam_on_03_09_22"
-folder_list = [os.path.sep.join([".", "data", "03-11-2022", "69.5% DOPC_30% DOPS_0.5% Atto", "100 nM Cy3 ALIX TEV Strep"]),
-        os.path.sep.join([".", "data", "03-11-2022", "69.5% DOPC_30% DOPS_0.5% Atto", "100 nM Cy3 ALIX TEV Strep_repeat"])]                               # Data folder(s); list all folders cotaining .tif images to be analyzed
-label = "03-11-22_ALIX_TEV_Strep_whole_dataset_by_channel_2.5li_thresh_denoise_gaussian_blur_0.6detection_0.25diam_on_03_14_22"             # Name your output here
-yolo_model_path = "06062021_best.pt"                                                                                    # Designate your yolo model path here
-channels_of_interest = [0, 1]                                                                                           # Enter your protein channels (zero-indexing); if more than 1 channel is entered, result will also include colocalization analysis
-lipid_channel = 2                                                                                                       # Enter the lipid channel (zero_indexing) for GUV recognition purposes
+folder_list = [os.path.sep.join(["data", "03-12-2022", "0.5% Atto 488_69.5% DOPC_30%DOPS", "200 nM Dark ALG2_100 nM Cy3 ALIX Tev Strep"])]
+label = "03-12-22_by_ch_2.5li_backsub_0.5% Atto 488_69.5% DOPC_30%DOPS_ALG2_ALIX_denoise_gaussian_blur_1.1otsu_0.6detection_0.25diam_on_03_14_22"             # Name your output here
+
+yolo_model_path = os.path.abspath("06062021_best.pt")                                                                                    # Designate your yolo model path here
+channels_of_interest = [1, 2]                                                                                           # Enter your protein channels (zero-indexing); if more than 1 channel is entered, result will also include colocalization analysis
+lipid_channel = 0                                                                                                       # Enter the lipid channel (zero_indexing) for GUV recognition purposes
 series_type = Z_Stack_Series
 
 folder_list = [os.path.abspath(folder) for folder in folder_list]
