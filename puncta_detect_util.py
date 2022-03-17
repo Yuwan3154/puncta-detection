@@ -58,7 +58,7 @@ def identify_img(imfolder, yolo_model_path, thresh=0.8):
             file_list.append(i)
 
     for x in file_list:
-        img_sz = (cv.fastNlMeansDenoising(cv.imread(join(imfolder, x), 0), h=1.5)).shape[1]
+        img_sz = (cv.imread(join(imfolder, x), 0), h=1.5).shape[1]
         series_folder = join(imfolder, x[:-4])
         # os.system("python detect.py --weights /content/yolov5/best.pt --img 416 --conf 0.6 --source " + series_folder + " --save-txt")
         try:
