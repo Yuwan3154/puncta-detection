@@ -7,14 +7,14 @@ If your data is in .nd2 format, please convert all your files to .tif Included i
 
 One-time setup:
 1. Initialize the submodule yolov5; please Google if you don't know how to do this. 
-2. Install the environments using the "requirements.txt" file by using "conda env create -f environment.yml" to create a virtual environment; install Anaconda if you haven't
+2. Install the environments using the "environment.yml" file by using "conda env create -f environment.yml" to create a virtual environment (named "puncta"); install Anaconda if you haven't.
 
 Do the following edition in three_in_one.py using your favorite text editor.
 1. Edit the folder_list variable (a list) to contain strings of addresses for all of the folders that you wish to analyze together.
 2. Edit the "channels_of_interest" variable (a list) to be a list of integers with zero-indexing.
 3. Edit the "lipid_channel" variable (an int) to be the channel to be used for GUV detection; lipid channel is preferrable because they tend to be cleaner but protein channel is also fine.
 4. Change the "details" variable to True if you wish to see the results for individual Z-stacks (can be very long); by default this is False.
-5. Activate the virtual environment created in the one-time setup and run three_in_one.py in command line with the working directory being this repo folder.
+5. Activate the virtual environment created in the one-time setup by "conda activate puncta" and run three_in_one.py in command line with the working directory being this repo folder.
 
 The result will be saved to "results" folder with a copy of .csv file and a copy of pickle file (a DataFrame Object when read out); each row of the DataFrame corresponds to a GUV.
 Columns of interest:
