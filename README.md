@@ -28,4 +28,4 @@ Columns of interest:
 Troubleshooting:
 1. Manually remove the folder "yolov5/runs" after running the script once is recommended because removing files with the python script is not guaranteed to work because of permission issue.
 2. If prompted with FileNotFoundError, check to make sure that you have followed the method for nd2 to tiff conversion mentioned above and the addresses you entered are correct.
-3. Any other thing
+3. For any other errors or concerns please email me at co3154@berkeley.edu
