@@ -35,6 +35,7 @@ yolo_model_path = os.path.abspath("06062021_best.pt")                           
 channels_of_interest = [0, 1]                                                                                           # Enter your protein channels (zero-indexing); if more than 1 channel is entered, result will also include colocalization analysis
 lipid_channel = 2                                                                                                       # Enter the lipid channel (zero_indexing) for GUV recognition purposes
 series_type = Z_Stack_Series
+details = False
 
 folder_list = [os.path.abspath(folder) for folder in folder_list]
 if not os.path.exists("results"):
@@ -61,8 +62,11 @@ for folder in folder_list:
 for path in path_list:
   extract_image(path, lipid_channel)
 
-#if os.path.exists(".\\yolov5\\runs"):
-#    os.remove(".\\yolov5\\runs")
+if os.path.exists(os.path.sep.join(["yolov5", "runs"])):
+    try:
+        print(subprocess.check_output(["rm", "-r", os.path.sep.join(["yolov5", "runs"])]))
+    except subprocess.CalledProcessError as e:
+        print(e.output.decode('UTF-8'))
 # Detect GUV using yolov5
 for path in path_list:
   identify_img(path, yolo_model_path, detection_threshold)
@@ -88,4 +92,4 @@ for path in path_list:
 # saves data as a .csv file
 result.to_csv(path_or_buf=f"{save_path}.csv", sep=",", index=False)
 result.to_pickle(save_path)
-print_result(result, channels_of_interest)
+print_result(result, channels_of_interest, details)

@@ -58,7 +58,7 @@ def identify_img(imfolder, yolo_model_path, thresh=0.8):
             file_list.append(i)
 
     for x in file_list:
-        img_sz = (cv.imread(join(imfolder, x), 0), h=1.5).shape[1]
+        img_sz = (cv.imread(join(imfolder, x), 0)).shape[1]
         series_folder = join(imfolder, x[:-4])
         # os.system("python detect.py --weights /content/yolov5/best.pt --img 416 --conf 0.6 --source " + series_folder + " --save-txt")
         try:
@@ -117,9 +117,12 @@ def process_data(imfolder, folder_index_count, result, num_bins, channels_of_int
             if not old_punctate:
                 signal_df = signal_df.drop(columns=f"punctateness ch{channel_of_interest}")
 
-            temp = np.sum(np.array(signal_df[[f"value {i} ch{channel_of_interest}" for i in range(num_frame)]].isnull()),
+            if num_frame > 1:
+                temp = np.sum(np.array(signal_df[[f"value {i} ch{channel_of_interest}" for i in range(num_frame)]].isnull()),
                           axis=1)
-            signal_df[f"quality ch{channel_of_interest}"] = temp / num_frame <= (1 - 6 / num_frame)
+                signal_df[f"quality ch{channel_of_interest}"] = temp / num_frame <= (1 - 6 / num_frame)
+            else:
+                signal_df[f"quality ch{channel_of_interest}"] = True
             signal_df["num frame"] = num_frame
             signal_df = new_punctate(signal_df, channel_of_interest)
             signal_df_lst.append(signal_df)
