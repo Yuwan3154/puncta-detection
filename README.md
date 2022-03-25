@@ -6,8 +6,8 @@ To get better results, please try to minimize the amount of protein aggregates i
 If your data is in .nd2 format, please convert all your files to .tif Included in this repo is an imageJ macros "nd2totiff.ijm" that can be used for converting .nd2 files to .tif files; when prompted, choose the folder that contains your .nd2 files.
 
 One-time setup:
-1. Initialize the submodule yolov5; please Google if you don't know how to do this.
-2. Install the environments using the "requirements.txt" file by using "conda -n envname -r requirements.txt" to create a virtual environment; install Anaconda if you haven't
+1. Initialize the submodule yolov5; please Google if you don't know how to do this. 
+2. Install the environments using the "requirements.txt" file by using "conda env create -f environment.yml" to create a virtual environment; install Anaconda if you haven't
 
 Do the following edition in three_in_one.py using your favorite text editor.
 1. Edit the folder_list variable (a list) to contain strings of addresses for all of the folders that you wish to analyze together.
