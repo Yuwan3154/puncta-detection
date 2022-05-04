@@ -58,7 +58,7 @@ def identify_img(imfolder, yolo_model_path, thresh=0.8):
             file_list.append(i)
 
     for x in file_list:
-        img_sz = (cv.fastNlMeansDenoising(cv.imread(join(imfolder, x), 0), h=1.5)).shape[1]
+        img_sz = (cv.imread(join(imfolder, x), 0)).shape[1]
         series_folder = join(imfolder, x[:-4])
         # os.system("python detect.py --weights /content/yolov5/best.pt --img 416 --conf 0.6 --source " + series_folder + " --save-txt")
         try:
@@ -886,7 +886,7 @@ def colocalization(df, chs):
                 cur_GUV = df.iloc[i]
                 ch1_puncta_coord, ch2_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords()
                 total += max(len(ch1_puncta_coord), len(ch2_puncta_coord))
-                threshold = max(cur_GUV[f"w {j}"], cur_GUV[f"h {j}"]) * img_sz / 4
+                threshold = 5 # max(cur_GUV[f"w {j}"], cur_GUV[f"h {j}"]) * img_sz / 4
                 if len(ch1_puncta_coord) > len(ch2_puncta_coord):
                     ch1_puncta_coord, ch2_puncta_coord = ch2_puncta_coord, ch1_puncta_coord
                 for puncta2 in ch2_puncta_coord:
@@ -967,7 +967,7 @@ def manual_colocalization(df, chs, upstream_channel):
             for j in range(cur_GUV["num frame"]):
                 ch1_puncta_coord, ch2_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords()
                 x1, x2, y1, y2 = manual_label_position(cur_GUV)
-                threshold = max(x2 - x1, y2 - y1) / 4
+                threshold = 5 # max(x2 - x1, y2 - y1) / 4
                 if ch1 == upstream_channel or len(ch1_puncta_coord) > len(ch2_puncta_coord):
                     ch1_puncta_coord, ch2_puncta_coord = ch2_puncta_coord, ch1_puncta_coord
                 total[i] += len(ch2_puncta_coord)
@@ -991,7 +991,7 @@ def manual_colocalization(df, chs, upstream_channel):
                     chs_puncta_coord_dict = dict(list(zip([ch1, ch2, ch3], [ch1_puncta_coord, ch2_puncta_coord, ch3_puncta_coord])))
                     total[i] += len(chs_puncta_coord_dict[upstream_channel])
                     x1, x2, y1, y2 = manual_label_position(cur_GUV)
-                    threshold = max(x2 - x1, y2 - y1) / 4
+                    threshold = 5 # max(x2 - x1, y2 - y1) / 4
                     upstream_puncta_coord = chs_puncta_coord_dict.pop(upstream_channel)
                     for upstream_puncta in upstream_puncta_coord:
                         upstream_puncta = np.array(upstream_puncta)
