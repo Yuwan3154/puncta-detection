@@ -23,19 +23,19 @@ import scipy.ndimage as ndimage
 from scipy.optimize import curve_fit
 import shutil
 
-def process_dir(exp_dir, channels_of_interest, detect_channel):
+def process_dir(exp_dir, channels_of_interest, detect_channel, detail):
   detection_threshold = 0.6                                                                                               # The cutoff to ignore GUVs that the GUV detection algorithm is less confident about
   # folder_list = [".\\data\\01-11-22\\30_DOPS 69.5_ DOPC 0.5 _Atto\\200nM ALG2 A78C ESCRT1"]
   # label = "01-11-22_30DOPS_ALG2_ESCRT1_whole_dataset_minimum_thresh_denoise_gaussian_blur_0.8detection_0.25diam_on_03_09_22"
   folder_list = [exp_dir]
-  label = f"distance_{exp_dir}"             # Name your output here
+  label = f"distance_{exp_dir}".replace("/", "_")             # Name your output here
 
   yolo_model_path = os.path.abspath("06062021_best.pt")                                                                                    # Designate your yolo model path here
   # channels_of_interest = [0, 1]                                                                                           # Enter your protein channels (zero-indexing); if more than 1 channel is entered, result will also include colocalization analysis
   # lipid_channel = 2                                                                                                     # Enter the lipid channel (zero_indexing) for GUV recognition purposes
   lipid_channel = detect_channel
   series_type = Z_Stack_Series
-  detail, frame_quality = True, False
+  frame_quality = False
 
   folder_list = [os.path.abspath(folder) for folder in folder_list]
   if not os.path.exists("results"):
@@ -62,8 +62,9 @@ def process_dir(exp_dir, channels_of_interest, detect_channel):
   for path in path_list:
     extract_image(path, lipid_channel)
 
-  if os.path.exists(".\\yolov5\\runs"):
-     shutil.rmtree(".\\yolov5\\runs")
+  if os.path.exists("yolov5/runs"):
+     print("Removing old detection!")
+     shutil.rmtree("yolov5/runs", ignore_errors=False)
   # Detect GUV using yolov5
   for path in path_list:
     identify_img(path, yolo_model_path, detection_threshold)
@@ -90,3 +91,4 @@ def process_dir(exp_dir, channels_of_interest, detect_channel):
   result.to_csv(path_or_buf=f"{save_path}.csv", sep=",", index=False)
   result.to_pickle(save_path)
   print_result(result, channels_of_interest, detail, frame_quality)
+  return result

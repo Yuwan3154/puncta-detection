@@ -1,3 +1,4 @@
+from multiprocessing.sharedctypes import Value
 import torch
 import numpy as np
 import pandas as pd
@@ -117,22 +118,24 @@ def process_data(imfolder, folder_index_count, result, num_bins, channels_of_int
             if not old_punctate:
                 signal_df = signal_df.drop(columns=f"punctateness ch{channel_of_interest}")
 
-            temp = np.sum(np.array(signal_df[[f"value {i} ch{channel_of_interest}" for i in range(num_frame)]].isnull()),
-                          axis=1)
-            signal_df[f"quality ch{channel_of_interest}"] = temp / num_frame <= (1 - 6 / num_frame)
+            temp = np.sum(np.array(signal_df[[f"value {i} ch{channel_of_interest}" for i in range(num_frame)]].isnull()), axis=1)
+            signal_df[f"quality ch{channel_of_interest}"] = np.logical_or(temp / num_frame <= (1 - 6 / num_frame), num_frame < 6)
             signal_df["num frame"] = num_frame
             signal_df = new_punctate(signal_df, channel_of_interest)
             signal_df_lst.append(signal_df)
 
         # deals with when multiple channels of interest are present
         final_df = signal_df_lst[0].sort_values(by="x 0").reset_index(drop=True)
+        final_df = final_df.astype({"num frame": int})
         if len(channels_of_interest) > 1:
             for cur_df in signal_df_lst[1:]:
                 cur_df = cur_df.sort_values(by="x 0").reset_index(drop=True)
                 cols_to_use = cur_df.columns.difference(final_df.columns).to_list()  # https://stackoverflow.com/questions/19125091/pandas-merge-how-to-avoid-duplicating-columns
                 final_df = pd.DataFrame.merge(final_df, cur_df[cols_to_use], left_index=True, right_index=True, how='outer')
             final_df = colocalization(final_df, channels_of_interest)
+            final_df = final_df.astype({"num frame": int})
             final_df = new_colocalization(final_df, im, channels_of_interest, puncta_pixel_threshold)
+            final_df = final_df.astype({"num frame": int})
 
         if result is None:
             result = final_df
@@ -141,6 +144,7 @@ def process_data(imfolder, folder_index_count, result, num_bins, channels_of_int
 
         # makes sure the correct label is read for the next image file
         folder_index_count += 1
+    result = result.astype({"num frame": int})
     result = square_quality(result)
     return result, folder_index_count
 
@@ -219,9 +223,9 @@ def print_result(result, channels_of_interest, detail=True, frame_quality=True):
 
     print("2-channel colocalization")
     # 2-channel colocalization
-    for folder in np.unique(result["folder"]):
+    for folder in (result["folder"]).unique():
         cur_folder_result = []
-        for file_name in np.unique((result[result["folder"] == folder])["file name"]):
+        for file_name in (result[result["folder"] == folder]["file name"]).unique():
             cur_file_df = result[np.array(result["folder"] == folder) * np.array(result["file name"] == file_name)]
             for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
                 cur_chs_df = cur_file_df[cur_file_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()]
@@ -235,7 +239,7 @@ def print_result(result, channels_of_interest, detail=True, frame_quality=True):
         #     print(f"The percent colocalization for {folder} between channels {ch1} and {ch2} is {np.mean(cur_folder_result)}.")
         #     print()
 
-    for temp_folder in np.unique(result["temp folder"]):
+    for temp_folder in (result["temp folder"]).unique():
         cur_folder_df = result[result["temp folder"] == temp_folder]
         for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
             print()
@@ -251,9 +255,9 @@ def print_result(result, channels_of_interest, detail=True, frame_quality=True):
 
     print("2-channel new colocalization")
     # 2-channel new colocalization
-    for folder in np.unique(result["folder"]):
+    for folder in (result["folder"]).unique():
         cur_folder_result = []
-        for file_name in np.unique((result[result["folder"] == folder])["file name"]):
+        for file_name in ((result[result["folder"] == folder])["file name"]).unique():
             cur_file_df = result[np.array(result["folder"] == folder) * np.array(result["file name"] == file_name)]
             for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
                 cur_chs_df = cur_file_df[cur_file_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()]
@@ -266,7 +270,7 @@ def print_result(result, channels_of_interest, detail=True, frame_quality=True):
         #     print(f"The percent new colocalization for {folder} between channels {ch1} and {ch2} is {np.mean(cur_folder_result)}.")
         #     print()
 
-    for temp_folder in np.unique(result["temp folder"]):
+    for temp_folder in (result["temp folder"]).unique():
             cur_folder_df = result[result["temp folder"] == temp_folder]
             for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
                 print()
@@ -280,13 +284,12 @@ def print_result(result, channels_of_interest, detail=True, frame_quality=True):
         print(f"The overall percent new colocalization between channels {ch1} and {ch2} is {ch_percent}.")
         print()
     
-    
-    
+      
     print("channel punctateness")
     # channel punctateness
-    for folder in np.unique(result["folder"]):
+    for folder in (result["folder"]).unique():
       cur_folder_result = dict([(ch, []) for ch in channels_of_interest])
-      for file_name in np.unique((result[result["folder"] == folder])["file name"]):
+      for file_name in ((result[result["folder"] == folder])["file name"]).unique():
         cur_file_df = result[np.array(result["folder"] == folder) * np.array(result["file name"] == file_name)]
         for ch in channels_of_interest:
           cur_percent = np.mean(cur_file_df[cur_file_df[f"quality ch{ch}"]][f"new punctate ch{ch}"])
@@ -299,7 +302,7 @@ def print_result(result, channels_of_interest, detail=True, frame_quality=True):
             print(f"The percent punctateness for {folder} in channel {ch} is {np.mean(cur_folder_result[ch])}.")
             print()
 
-    for temp_folder in np.unique(result["temp folder"]):
+    for temp_folder in (result["temp folder"]).unique():
         cur_folder_df = result[result["temp folder"] == temp_folder]
         for ch in channels_of_interest:
             print()
@@ -316,7 +319,7 @@ def print_result(result, channels_of_interest, detail=True, frame_quality=True):
 def manual_print_result(manual_label_df, channels_of_interest, detail=True):
     print("2-channel colocalization")
     # 2-channel colocalization
-    for file_path in np.unique(manual_label_df["file path"]):
+    for file_path in (manual_label_df["file path"]).unique():
         cur_file_df = manual_label_df[np.array(manual_label_df["file path"] == file_path)]
         for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
             cur_chs_df = cur_file_df[
@@ -331,7 +334,7 @@ def manual_print_result(manual_label_df, channels_of_interest, detail=True):
 
     print("2-channel new colocalization")
     # 2-channel new colocalization
-    for file_path in np.unique(manual_label_df["file path"]):
+    for file_path in (manual_label_df["file path"]).unique():
         cur_file_df = manual_label_df[np.array(manual_label_df["file path"] == file_path)]
         for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
             cur_chs_df = cur_file_df[
@@ -346,7 +349,7 @@ def manual_print_result(manual_label_df, channels_of_interest, detail=True):
 
     print("3-channel colocalization")
     # 3-channel colocalization
-    for file_path in np.unique(manual_label_df["file path"]):
+    for file_path in (manual_label_df["file path"]).unique():
         cur_file_df = manual_label_df[np.array(manual_label_df["file path"] == file_path)]
         for ch1, ch2, ch3 in itertools.combinations(channels_of_interest, 3):
             cur_chs_df = cur_file_df[np.array(cur_file_df[f"new punctate ch{ch1}"]) * np.array(
@@ -361,7 +364,7 @@ def manual_print_result(manual_label_df, channels_of_interest, detail=True):
 
     # 3-channel new colocalization
     print("3-channel new colocalization")
-    for file_path in np.unique(manual_label_df["file path"]):
+    for file_path in (manual_label_df["file path"]).unique():
         cur_file_df = manual_label_df[np.array(manual_label_df["file path"] == file_path)]
         for ch1, ch2, ch3 in itertools.combinations(channels_of_interest, 3):
             cur_chs_df = cur_file_df[np.array(cur_file_df[f"new punctate ch{ch1}"]) * np.array(
@@ -604,17 +607,22 @@ class Guv:
         if guv1.adj and guv2.adj:
             return
         g1_coord, g2_coord = get_coord(guv1.xywh), get_coord(guv2.xywh)
-        l1, l2 = [g1_coord[0], g1_coord[2]], [g1_coord[1], g1_coord[3]]
-        r1, r2 = [g2_coord[0], g2_coord[2]], [g2_coord[1], g2_coord[3]]
-
-        # If one rectangle is on left side of other            @src https://www.geeksforgeeks.org/find-two-rectangles-overlap/
-        if (l1[0] >= r2[0] or l2[0] >= r1[0]):
+        g1_bbox, g2_bbox = [g1_coord[0], g1_coord[2], g1_coord[1], g1_coord[3]], [g2_coord[0], g2_coord[2], g2_coord[1], g2_coord[3]]
+        if check_overlap(g1_bbox, g2_bbox):
+            guv1.adj, guv2.adj = True, True
+        else:
             return
 
-        # If one rectangle is above other
-        if (r1[1] >= l2[1] or r2[1] >= l1[1]):
-            return
-        guv1.adj, guv2.adj = True, True
+def check_overlap(bbox1, bbox2):
+    # If one rectangle is on left side of other            @src https://www.geeksforgeeks.org/find-two-rectangles-overlap/
+    if (bbox1[0] >= bbox2[2] or bbox2[0] >= bbox1[2]):
+        return False
+    # If one rectangle is above other
+    elif (bbox1[1] >= bbox2[3] or bbox2[1] >= bbox1[3]):
+        return False
+    else:
+        return True
+
 
 class Z_Stack_Guv(Guv):
 
@@ -882,24 +890,68 @@ def colocalization(df, chs):
         for i in range(len(df)):
             img_sz = df["image size"].iloc[i]
             coloc, total = 0, 0
-            for j in range(df["num frame"][i]):
-                cur_GUV = df.iloc[i]
-                ch1_puncta_coord, ch2_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords()
-                total += max(len(ch1_puncta_coord), len(ch2_puncta_coord))
+            cur_GUV = df.iloc[i]
+            for j in range(int(cur_GUV["num frame"])):
+                ch1_puncta_coords, ch2_puncta_coords = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords()
+                ch1_puncta_bboxes, ch2_puncta_bboxes = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_bboxes(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_bboxes()
+                total += max(len(ch1_puncta_coords), len(ch2_puncta_coords))
                 threshold = 5 # max(cur_GUV[f"w {j}"], cur_GUV[f"h {j}"]) * img_sz / 4
-                if len(ch1_puncta_coord) > len(ch2_puncta_coord):
-                    ch1_puncta_coord, ch2_puncta_coord = ch2_puncta_coord, ch1_puncta_coord
-                for puncta2 in ch2_puncta_coord:
+                if len(ch1_puncta_coords) > len(ch2_puncta_coords):
+                    ch1_puncta_coords, ch2_puncta_coords = ch2_puncta_coords, ch1_puncta_coords
+                    ch1_puncta_bboxes, ch2_puncta_bboxes = ch2_puncta_bboxes, ch1_puncta_bboxes
+                for m in range(len(ch2_puncta_coords)):
                     cur_coloc = 0
-                    for puncta1 in ch1_puncta_coord:
-                        if math.sqrt(sum((np.array(puncta1) - np.array(puncta2)) ** 2)) < threshold:
+                    ch2_puncta_coord, ch2_puncta_bbox = ch2_puncta_coords[m], ch2_puncta_bboxes[m]
+                    for n in range(len(ch1_puncta_coords)):
+                        ch1_puncta_coord, ch1_puncta_bbox = ch1_puncta_coords[n], ch1_puncta_bboxes[n]
+                        # Determining colocalzation conditions
+                        if check_overlap(ch1_puncta_bbox, ch2_puncta_bbox) or math.sqrt(sum((np.array(ch1_puncta_coord) - np.array(ch2_puncta_coord))**2)) < threshold:
                             cur_coloc = 1
                             break
                     coloc += cur_coloc
                 # coloc = pair_points(list(ch1_puncta_coord), list(ch2_puncta_coord), threshold)
             if total != 0:
-                df[f"colocalization ch{ch1} ch{ch2}"].iloc[i] = coloc / total
-                df[f"colocalization weight ch{ch1} ch{ch2}"].iloc[i] = total
+                df.loc[i, f"colocalization ch{ch1} ch{ch2}"] = coloc / total
+                df.loc[i, f"colocalization weight ch{ch1} ch{ch2}"] = total
+    if len(chs) > 2:
+        for ch1, ch2, ch3 in itertools.combinations(chs, 3):
+            df[f"colocalization ch{ch1} ch{ch2} ch{ch3}"] = np.nan
+            df[f"colocalization weight ch{ch1} ch{ch2} ch{ch3}"] = np.nan
+            for i in range(len(df)):
+                img_sz = df["image size"].iloc[i]
+                coloc, total = 0, 0
+                cur_GUV = df.iloc[i]
+                for j in range(int(cur_GUV["num frame"])):
+                    ch1_puncta_coords, ch2_puncta_coords, ch3_puncta_coords = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch3}"].get_puncta_coords()
+                    ch1_puncta_bboxes, ch2_puncta_bboxes, ch3_puncta_bboxes = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_bboxes(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_bboxes(), cur_GUV[f"puncta {j} ch{ch3}"].get_puncta_bboxes()
+                    total += max(len(ch1_puncta_coords), len(ch2_puncta_coords), len(ch3_puncta_coords))
+                    threshold = 5 # max(cur_GUV[f"w {j}"], cur_GUV[f"h {j}"]) * img_sz / 4
+                    if len(ch1_puncta_coords) > len(ch3_puncta_coords) or len(ch2_puncta_coords) > len(ch3_puncta_coords):
+                        if len(ch1_puncta_coords) > len(ch2_puncta_coords):
+                            ch1_puncta_coords, ch3_puncta_coords = ch3_puncta_coords, ch1_puncta_coords
+                            ch1_puncta_bboxes, ch3_puncta_bboxes = ch3_puncta_bboxes, ch1_puncta_bboxes
+                        else:
+                            ch2_puncta_coords, ch3_puncta_coords = ch3_puncta_coords, ch2_puncta_coords
+                            ch2_puncta_bboxes, ch3_puncta_bboxes = ch3_puncta_bboxes, ch2_puncta_bboxes
+                    for k in range(len(ch3_puncta_coords)):
+                        cur_coloc = 0
+                        ch3_puncta_coord, ch3_puncta_bbox = ch3_puncta_coords[k], ch3_puncta_bboxes[k]
+                        for m in range(len(ch2_puncta_coords)):
+                            ch2_puncta_coord, ch2_puncta_bbox = ch2_puncta_coords[m], ch2_puncta_bboxes[m]
+                            if not (check_overlap(ch3_puncta_bbox, ch2_puncta_bbox) or math.sqrt(sum((np.array(ch3_puncta_coord) - np.array(ch2_puncta_coord))**2)) < threshold):
+                                continue
+                            for n in range(len(ch1_puncta_coords)):
+                                ch1_puncta_coord, ch1_puncta_bbox = ch1_puncta_coords[n], ch1_puncta_bboxes[n]
+                                # Determining colocalzation conditions
+                                if (check_overlap(ch1_puncta_bbox, ch2_puncta_bbox) and check_overlap(ch1_puncta_bbox, ch3_puncta_bbox)) or \
+                                (math.sqrt(sum((np.array(ch1_puncta_coord) - np.array(ch2_puncta_coord))**2)) < threshold and math.sqrt(sum((np.array(ch1_puncta_coord) - np.array(ch3_puncta_coord))**2)) < threshold):
+                                    cur_coloc = 1
+                                    break
+                            coloc += cur_coloc
+                        # coloc = pair_points(list(ch1_puncta_coord), list(ch2_puncta_coord), threshold)
+                if total != 0:
+                    df.loc[i, f"colocalization ch{ch1} ch{ch2} ch{ch3}"] = coloc / total
+                    df.loc[i, f"colocalization weight ch{ch1} ch{ch2} ch{ch3}"] = total
     return df
 
 def pair_points(group1, group2, threshold):
@@ -1020,11 +1072,11 @@ def new_colocalization(df, im, chs, puncta_pixel_threshold):
     img_sz = im.shape[1]
     for ch1, ch2 in itertools.combinations(chs, 2):
         df[f"new colocalization ch{ch1} ch{ch2}"] = np.nan
-        for folder in np.unique(df["folder"]):
-            for file_name in np.unique((df[df["folder"] == folder])["file name"]):
+        for folder in df["folder"].unique():
+            for file_name in ((df[df["folder"] == folder])["file name"]).unique():
                 cur_df = df[np.array(df["folder"] == folder) * np.array(df["file name"] == file_name)]
                 coloc_result = [0 for _ in range(len(cur_df))]
-                for j in range(cur_df["num frame"].iloc[0]):
+                for j in range(int(cur_df["num frame"].iloc[0])):
                     if len(im.shape) == 4:
                         all_ch_img = im[j, :, :, :]
                     else:
