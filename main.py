@@ -37,7 +37,7 @@ if __name__ == "__main__":
             ch_percent = np.mean(result_df[f"new punctate ch{ch}"])
             summary_df.loc[index, f"new punctate ch{ch}"] = ch_percent
 
-    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser = argparse.ArgumentParser(description='Process GUV punctateness.')
     parser.add_argument("--file", metavar="Summary CSV", type=str, nargs=1, help="the path to a .csv file with at least three columns:\n1. channels of interest [int] 2. detect channel [int] 3. experiment folder [path]")
     parser.add_argument("--detail", type=bool, const=True, default=False, nargs="?")
     args = vars(parser.parse_args())
