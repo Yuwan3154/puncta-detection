@@ -70,7 +70,7 @@ def identify_img(imfolder, yolo_model_path, thresh=0.8):
             print(e.output.decode('UTF-8'))
     os.chdir(cwd)
 
-def process_data(imfolder, folder_index_count, result, num_bins, channels_of_interest, lipid_ch, series_type, puncta_model, old_punctate, frame_punctate, verbose, puncta_pixel_threshold):
+def process_data(imfolder, folder_index_count, result, num_bins, channels_of_interest, lipid_ch, series_type, puncta_model, old_punctate, frame_punctate, verbose, puncta_pixel_threshold, pixel_threshold):
     file_list = []
     for f in os.listdir(imfolder):
         if f.endswith(".tif"):
@@ -97,7 +97,7 @@ def process_data(imfolder, folder_index_count, result, num_bins, channels_of_int
             label_folder = os.path.sep.join(["yolov5", "runs", "detect", "exp{}".format(folder_index(folder_index_count))])
             # defines local maxima in the lipid channel
             num_frame = len(lipid)
-            cur_series = series_type(ch, lipid, imfolder, file_name, puncta_model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold[channel_of_interest])
+            cur_series = series_type(ch, lipid, imfolder, file_name, puncta_model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold[channel_of_interest], pixel_threshold)
             for j in range(num_frame):
                 label_file_name = os.path.sep.join([label_folder, "labels", "{}.txt".format(j)])
                 try:
@@ -118,8 +118,6 @@ def process_data(imfolder, folder_index_count, result, num_bins, channels_of_int
             if not old_punctate:
                 signal_df = signal_df.drop(columns=f"punctateness ch{channel_of_interest}")
 
-            temp = np.sum(np.array(signal_df[[f"value {i} ch{channel_of_interest}" for i in range(num_frame)]].isnull()), axis=1)
-            signal_df[f"quality ch{channel_of_interest}"] = np.logical_or(temp / num_frame <= (1 - 6 / num_frame), num_frame < 6)
             signal_df["num frame"] = num_frame
             signal_df = new_punctate(signal_df, channel_of_interest)
             signal_df_lst.append(signal_df)
@@ -146,9 +144,10 @@ def process_data(imfolder, folder_index_count, result, num_bins, channels_of_int
         folder_index_count += 1
     result = result.astype({"num frame": int})
     result = square_quality(result)
+    result = channel_quality(result, channels_of_interest)
     return result, folder_index_count
 
-def manual_process_data(manual_label_df_file_path, channels_of_interest, upstream_channel, puncta_pixel_threshold, dataset_threshold_mode="by_channel"):
+def manual_process_data(manual_label_df_file_path, channels_of_interest, upstream_channel, puncta_pixel_threshold, pixel_threshold, dataset_threshold_mode="by_channel"):
     manual_label_df = pd.read_csv(manual_label_df_file_path)
     manual_label_df = manual_label_df[["file path", "image size", "num frame", "top left x", "top left y", "bottom right x", "bottom right y"]]
     if dataset_threshold_mode == "given":
@@ -200,7 +199,7 @@ def manual_process_data(manual_label_df_file_path, channels_of_interest, upstrea
                 for row in cur_df.index:
                     x1, x2, y1, y2 = manual_label_position(cur_df.loc[row])
                     try:
-                        cur_puncta = get_maxima(get_img_sec(cur_ch_img, x1, x2, y1, y2, None))
+                        cur_puncta = get_maxima(get_img_sec(cur_ch_img, x1, x2, y1, y2, None), pixel_threshold)
                     except ValueError:
                         cur_puncta = Puncta(0, [], [])
                     manual_label_df.at[row, f"puncta {j} ch{ch}"] = cur_puncta
@@ -215,12 +214,14 @@ def manual_process_data(manual_label_df_file_path, channels_of_interest, upstrea
     manual_label_df = new_manual_colocalization(manual_label_df, channels_of_interest, upstream_channel, puncta_pixel_threshold)
     return manual_label_df
 
-def print_result(result, channels_of_interest, detail=True, frame_quality=True):
-    result = result[result["square quality"]]
+def print_result(result, channels_of_interest, detail=True, frame_quality=True, square_quality=True):
+    if square_quality:
+        result = result[result["square quality"]]
     if frame_quality:
         result = result[result[f"quality ch{channels_of_interest[0]}"]]
     result["temp folder"] = list(map(lambda f: os.path.sep.join(f.split(os.path.sep)[:-1]), result["folder"]))
-
+    
+    print()
     print("2-channel colocalization")
     # 2-channel colocalization
     for folder in (result["folder"]).unique():
@@ -233,26 +234,25 @@ def print_result(result, channels_of_interest, detail=True, frame_quality=True):
                 cur_weight = np.mean(cur_chs_df[f"colocalization weight ch{ch1} ch{ch2}"])
                 cur_folder_result.extend([cur_percent] * len(cur_chs_df))
                 if detail:
-                    print(f"The percent colocalization for {folder}{file_name} between channels {ch1} and {ch2} is {cur_percent} with average weight {cur_weight}.")
+                    print(f"The percent colocalization for {folder}{os.path.sep}{file_name} between channels {ch1} and {ch2} is {cur_percent} with average weight {cur_weight}.")
         # if detail:
         #     print()
         #     print(f"The percent colocalization for {folder} between channels {ch1} and {ch2} is {np.mean(cur_folder_result)}.")
         #     print()
 
+    print()
     for temp_folder in (result["temp folder"]).unique():
         cur_folder_df = result[result["temp folder"] == temp_folder]
         for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
-            print()
             ch_percent = np.mean(cur_folder_df[cur_folder_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()][f"colocalization ch{ch1} ch{ch2}"])
             print(f"The overall percent colocalization for {temp_folder} between channels {ch1} and {ch2} is {ch_percent}.")
-            print()
 
+    print()
     for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
-        print()
         ch_percent = np.mean(result[result[f"colocalization weight ch{ch1} ch{ch2}"].notna()][f"colocalization ch{ch1} ch{ch2}"])
         print(f"The overall percent colocalization between channels {ch1} and {ch2} is {ch_percent}.")
-        print()
 
+    print()
     print("2-channel new colocalization")
     # 2-channel new colocalization
     for folder in (result["folder"]).unique():
@@ -264,27 +264,25 @@ def print_result(result, channels_of_interest, detail=True, frame_quality=True):
                 cur_percent = np.mean(cur_chs_df[f"new colocalization ch{ch1} ch{ch2}"])
                 cur_folder_result.extend([cur_percent] * len(cur_chs_df))
                 if detail:
-                    print(f"The percent new colocalization for {folder}{file_name} between channels {ch1} and {ch2} is {cur_percent}.")
+                    print(f"The percent new colocalization for {folder}{os.path.sep}{file_name} between channels {ch1} and {ch2} is {cur_percent}.")
         # if detail:
         #     print()
         #     print(f"The percent new colocalization for {folder} between channels {ch1} and {ch2} is {np.mean(cur_folder_result)}.")
         #     print()
-
+    
+    print()
     for temp_folder in (result["temp folder"]).unique():
             cur_folder_df = result[result["temp folder"] == temp_folder]
             for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
-                print()
                 ch_percent = np.mean(cur_folder_df[cur_folder_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()][f"new colocalization ch{ch1} ch{ch2}"])
                 print(f"The overall percent new colocalization for {temp_folder} between channels {ch1} and {ch2} is {ch_percent}.")
-                print()
 
+    print()
     for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
-        print()
         ch_percent = np.mean(result[result[f"colocalization weight ch{ch1} ch{ch2}"].notna()][f"new colocalization ch{ch1} ch{ch2}"])
         print(f"The overall percent new colocalization between channels {ch1} and {ch2} is {ch_percent}.")
-        print()
     
-      
+    print()
     print("channel punctateness")
     # channel punctateness
     for folder in (result["folder"]).unique():
@@ -295,26 +293,22 @@ def print_result(result, channels_of_interest, detail=True, frame_quality=True):
           cur_percent = np.mean(cur_file_df[cur_file_df[f"quality ch{ch}"]][f"new punctate ch{ch}"])
           cur_folder_result[ch].extend([cur_percent] * len(cur_file_df))
           if detail:
-            print(f"The percent punctateness for {folder}{file_name} in channel {ch} is {cur_percent}.")
+            print(f"The percent punctateness for {folder}{os.path.sep}{file_name} in channel {ch} is {cur_percent}.")
       for ch in channels_of_interest:
         if detail:
-            print()
             print(f"The percent punctateness for {folder} in channel {ch} is {np.mean(cur_folder_result[ch])}.")
-            print()
 
+    print()
     for temp_folder in (result["temp folder"]).unique():
         cur_folder_df = result[result["temp folder"] == temp_folder]
         for ch in channels_of_interest:
-            print()
             ch_percent = np.mean(cur_folder_df[f"new punctate ch{ch}"])
             print(f"The overall percent punctateness for {temp_folder} in channel {ch} is {ch_percent}.")
-            print()
 
+    print()
     for ch in channels_of_interest:
-        print()
         ch_percent = np.mean(result[f"new punctate ch{ch}"])
         print(f"The overall percent punctateness in channel {ch} is {ch_percent}.")
-        print()
 
 def manual_print_result(manual_label_df, channels_of_interest, detail=True):
     print("2-channel colocalization")
@@ -425,11 +419,23 @@ def similar_width_height(w, h):
         return False
 
 def square_quality(df):
+    df = df.copy()
     quality_result = []
     for i in range(len(df)):
         init_frame = df["initial frame"][i]
         quality_result.append(similar_width_height(df[f"w {init_frame}"][i], df[f"h {init_frame}"][i]))
     df["square quality"] = quality_result
+    return df
+
+def channel_quality(df, channels_of_interest):
+    df = df.copy()
+    for channel_of_interest in channels_of_interest:
+        for num_frame in df["num frame"].unique():
+            cur_df = df[df["num frame"] == num_frame]
+            cur_idx = cur_df.index
+            temp = np.sum(np.array(cur_df[[f"value {i} ch{channel_of_interest}" for i in range(num_frame)]].isnull()), axis=1)
+            # df.loc[cur_idx, f"quality ch{channel_of_interest}"] = np.array(temp / num_frame <= (1 - 6 / num_frame))
+            df.loc[cur_idx, f"quality ch{channel_of_interest}"] = np.logical_or(temp / num_frame <= (1 - 6 / num_frame), num_frame < 6)
     return df
 
 def quantify(xywh, c1, lipid, f, img_sz, detection=False):
@@ -530,7 +536,7 @@ class Guv:
     A class storing the positional information of a GUV across time series.
     """
 
-    def __init__(self, first_xywh, initial_frame, folder, file_name, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_threshold):
+    def __init__(self, first_xywh, initial_frame, folder, file_name, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_threshold, pixel_threshold):
         self.xs, self.ys, self.ws, self.hs = [], [], [], []
         self.values = []
         self.candidate = first_xywh
@@ -546,6 +552,7 @@ class Guv:
         self.old_punctate = old_punctate
         self.frame_punctate = frame_punctate
         self.puncta_pixel_threshold = puncta_pixel_threshold
+        self.pixel_threshold = pixel_threshold
 
     def update_pos(self, xywh):
         self.x = xywh[0]
@@ -582,7 +589,7 @@ class Guv:
                 score = int(predict(self.candidate, ch, f, self.model, self.img_sz, self.num_bins))
                 self.punctate += score
             x1, x2, y1, y2 = get_coord(self.candidate, self.img_sz)
-            self.puncta_param.append(get_maxima(get_img_sec(ch_mask, x1, x2, y1, y2, f)))
+            self.puncta_param.append(get_maxima(get_img_sec(ch_mask, x1, x2, y1, y2, f), self.pixel_threshold))
             self.update_pos(self.candidate)
             self.values.append(quantify(self.candidate, ch, lipid, f, self.img_sz, False))
             self.candidate = None
@@ -626,8 +633,8 @@ def check_overlap(bbox1, bbox2):
 
 class Z_Stack_Guv(Guv):
 
-    def __init__(self, first_xywh, initial_frame, folder, file_name, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_threshold):
-        Guv.__init__(self, first_xywh, initial_frame, folder, file_name, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_threshold)
+    def __init__(self, first_xywh, initial_frame, folder, file_name, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_threshold, pixel_threshold):
+        Guv.__init__(self, first_xywh, initial_frame, folder, file_name, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_threshold, pixel_threshold)
         self.equa_frame = None
         self.equa_size = 0
 
@@ -641,7 +648,7 @@ class Z_Stack_Guv(Guv):
                 score = int(predict(self.candidate, ch, f, self.model, self.img_sz, self.num_bins, self.old_punctate))
                 self.punctate += score
             x1, x2, y1, y2 = get_coord(self.candidate, self.img_sz)
-            self.puncta_param.append(get_maxima(get_img_sec(ch_mask, x1, x2, y1, y2, f)))
+            self.puncta_param.append(get_maxima(get_img_sec(ch_mask, x1, x2, y1, y2, f), self.pixel_threshold))
             self.update_pos(self.candidate)
             self.update_equa(self.candidate, f)
             self.values.append(quantify(self.candidate, ch, lipid, f, self.img_sz, False))
@@ -661,7 +668,7 @@ class Z_Stack_Guv(Guv):
 class Series:
     """A class storing the GUVs from the same series."""
 
-    def __init__(self, ch, lipid, folder, file_name, model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold):
+    def __init__(self, ch, lipid, folder, file_name, model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold, pixel_threshold):
         self.guv_lst = []
         self.frame = 0
         self.ch = ch
@@ -675,6 +682,7 @@ class Series:
         self.old_punctate = old_punctate
         self.frame_punctate = frame_punctate
         self.puncta_pixel_threshold = puncta_pixel_threshold
+        self.pixel_threshold = pixel_threshold
 
     def process_frame(self, guvs):
         add_lst = self.match_all(guvs)
@@ -708,7 +716,7 @@ class Series:
                 if best_match is None:
                     cur_add_lst.append(
                         Guv(xywh, self.frame, self.folder, self.file_name, self.img_sz, self.model, self.num_bins,
-                            self.old_punctate, self.puncta_pixel_threshold))
+                            self.old_punctate, self.puncta_pixel_threshold, self.pixel_threshold))
                 elif cur_match_dic.get(best_match, None) is None:
                     cur_match_dic[best_match] = xywh
                     cur_score += best_match.distance_to_coord(xywh)
@@ -737,8 +745,8 @@ class Series:
 
 class Z_Stack_Series(Series):
 
-    def __init__(self, ch, lipid, folder, file_name, model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold):
-        Series.__init__(self, ch, lipid, folder, file_name, model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold)
+    def __init__(self, ch, lipid, folder, file_name, model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold, pixel_threshold):
+        Series.__init__(self, ch, lipid, folder, file_name, model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold, pixel_threshold)
         self.dist_thresh = 10
 
     def match_all(self, guvs, num_trial=5):
@@ -761,7 +769,7 @@ class Z_Stack_Series(Series):
                 if best_match is None:
                     cur_add_lst.append(
                         Z_Stack_Guv(xywh, self.frame, self.folder, self.file_name, self.img_sz, self.model, self.num_bins,
-                                    self.old_punctate, self.frame_punctate, self.puncta_pixel_threshold))
+                                    self.old_punctate, self.frame_punctate, self.puncta_pixel_threshold, self.pixel_threshold))
                 elif cur_match_dic.get(best_match, None) is None:
                     cur_match_dic[best_match] = xywh
                     cur_score += best_match.distance_to_coord(xywh)
@@ -799,7 +807,7 @@ class Puncta:
         return self.puncta_bbox
 
 # Puncta Quant
-def get_maxima(img):
+def get_maxima(img, pixel_threshold):
     """Use processed image to pick up puncta information.
     Input: a 2D array
     Output: a list with 3 entries:
@@ -812,7 +820,7 @@ def get_maxima(img):
     # cutoff = max(img.shape) / 4
     coords, bboxes = [], []
     for label_property in measure.regionprops(labels):
-        if label_property.area >= 5:
+        if label_property.area >= pixel_threshold:
             cur_center = (int(label_property.centroid[1]), int(label_property.centroid[0]))
             # if sum(np.sqrt((cur_center - center_of_img)**2)) > cutoff:
             coords.append(cur_center)
