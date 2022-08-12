@@ -24,14 +24,17 @@ from scipy.optimize import curve_fit
 import warnings
 warnings.filterwarnings('ignore')
 
-manual_label_file_path_list = ["Manual_label_Feb_21_2022_final.csv",
-                                "Repeat_Manual_label_Feb_21_2022 - manual_label_example.csv",
-                                "data\\02-20-2022\\69.5_ DOPC_30_ DOPS_0.5_ Atto\\200 nM Dark ALG2_100 nM Cy3 ALIX_10 nM CHMP4b_100 nM dark CHMP2A_100 nM dark CHMP3_100 nM LD 655 Vps4b\\Manual_label_Feb_20_2022 - manual_label_example.csv"]
-for up_ch in [1, 0]:
-    labels = [f"03_10_22_02-21-2022_0.5minimum_log_contrast_thresh_denoise_gaussian_blur_0.25diam_ch{up_ch}_upstream", f"03_10_22_02-21-2022_repeat_0.5minimum_log_contrast_thresh_denoise_gaussian_blur_0.25diam_ch{up_ch}_upstream", f"03_10_22_02-20-2022_0.5minimum_log_contrast_thresh_denoise_gaussian_blur_0.25diam_ch{up_ch}_upstream"]
+manual_label_file_path_list = ["Manual_label_Feb_20_2022 - manual_label_example.csv",
+                                "Manual_label_Feb_21_2022_final.csv",
+                                "Repeat_Manual_label_Feb_21_2022 - manual_label_example.csv"
+                            ]
+pixel_threshold = 5
+for up_ch in [0]:
+    date = "07_21_22"
+    labels = [ f"{date}_02-20-2022_overlap_ch{up_ch}_upstream", f"{date}_02-21-2022_overlap_ch{up_ch}_upstream", f"{date}_02-21-2022_repeat_overlap_ch{up_ch}_upstream"]
     channels_of_interest = [0, 1, 2]
     upstream_channel = up_ch
-    dataset_threshold_mode = None                                                                                       # Choices are by_channel, all_channel, None
+    dataset_threshold_mode = "by_channel"                                                                                       # Choices are by_channel, all_channel, None
     combine_all_dataset = False
 
     puncta_pixel_threshold = dict()
@@ -51,7 +54,7 @@ for up_ch in [1, 0]:
         os.mkdir("manual_results")
     for manual_label_file_path, label in zip(manual_label_file_path_list, labels):
         save_path = join("manual_results", label)
-        manual_label_df = manual_process_data(manual_label_file_path, channels_of_interest, upstream_channel, puncta_pixel_threshold, dataset_threshold_mode)
+        manual_label_df = manual_process_data(manual_label_file_path, channels_of_interest, upstream_channel, puncta_pixel_threshold, pixel_threshold, dataset_threshold_mode)
         manual_label_df.to_csv(path_or_buf=f"{save_path}.csv", sep=",", index=False)
         manual_label_df.to_pickle(save_path)
         manual_print_result(manual_label_df, channels_of_interest)

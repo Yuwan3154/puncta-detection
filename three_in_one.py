@@ -1,40 +1,39 @@
 from puncta_detect_util import *
-import torch
 import numpy as np
 import pandas as pd
 import math
 import itertools
-from scipy.signal import correlate2d
+# from scipy.signal import correlate2d
 from skimage import io
-from skimage.filters import threshold_otsu, median, gaussian
+# from skimage.filters import threshold_otsu, median, gaussian
 from skimage.morphology import disk
-from skimage import measure
-from imutils import contours, grab_contours
-import scipy.ndimage.filters as filters
-from sklearn.preprocessing import StandardScaler, normalize
-from sklearn.mixture import GaussianMixture
+# from skimage import measure
+# from imutils import contours, grab_contours
+# import scipy.ndimage.filters as filters
+# from sklearn.preprocessing import StandardScaler, normalize
+# from sklearn.mixture import GaussianMixture
 import cv2 as cv
 import joblib
 import os
 from os.path import join
-import subprocess
-from sklearn.decomposition import PCA
-import scipy.ndimage as ndimage
-from scipy.optimize import curve_fit
 import shutil
+import subprocess
+# from sklearn.decomposition import PCA
+import scipy.ndimage as ndimage
+# from scipy.optimize import curve_fit
 
 def process_dir(exp_dir, channels_of_interest, detect_channel, meta_label, pixel_threshold, detail):
-  detection_threshold = 0.6                                                                                               # The cutoff to ignore GUVs that the GUV detection algorithm is less confident about
+  detection_threshold = 0.6 # The threshold confidence to ignore GUVs that the GUV detection algorithm is less confident about
   # folder_list = [".\\data\\01-11-22\\30_DOPS 69.5_ DOPC 0.5 _Atto\\200nM ALG2 A78C ESCRT1"]
   # label = f"combined_threshold_{pixel_threshold}_pixel_March_ALG2_on_05_26_22"
   folder_list = exp_dir
-  label = f"{meta_label}_{exp_dir[0]}".replace("/", "_")             # Name your output here
+  label = f"{meta_label}_{exp_dir[0]}".replace("/", "_") # Name your output here
   save_path = join("results", label)
-  if os.path.exists(save_path):                           # Short circuits if result is already available
+  if os.path.exists(save_path): # Short circuits if result is already available
     return pd.read_pickle(save_path)
-  yolo_model_path = os.path.abspath("06062021_best.pt")                                                                                    # Designate your yolo model path here
-  # channels_of_interest = [0, 1]                                                                                           # Enter your protein channels (zero-indexing); if more than 1 channel is entered, result will also include colocalization analysis
-  # lipid_channel = 2                                                                                                     # Enter the lipid channel (zero_indexing) for GUV recognition purposes
+  yolo_model_path = os.path.abspath("06062021_best.pt") # Designate your yolo model path here
+  # channels_of_interest = [0, 1] # Enter your protein channels (zero-indexing); if more than 1 channel is entered, result will also include colocalization analysis
+  # lipid_channel = 2 # Enter the lipid channel (zero_indexing) for GUV recognition purposes
   lipid_channel = detect_channel
   series_type = Z_Stack_Series
   frame_quality = False
@@ -95,16 +94,16 @@ def process_dir(exp_dir, channels_of_interest, detect_channel, meta_label, pixel
   print_result(result, channels_of_interest, detail, frame_quality)
   return result
 
-# if __name__ == "__main__":
-#   pixel_thresholds = [5]
-#   meta_labels = [f"combined_threshold_January_{pixel_threshold}_pixel" for pixel_threshold in pixel_thresholds]
-#   for pixel_threshold, meta_label in iter(zip(pixel_thresholds, meta_labels)):
-#     print("Start on thresh: " + str(pixel_threshold) + " and label: " + str(meta_label))
-#     # exp_dir = ["data/03-03-2022/89.5_ DOPC_10_DOPS_0.5_ Atto/200 nM Atto 488 ALG2", "data/03-02-2022/69.5_ DOPC_30_ DOPS_0.5_ Atto 647/200 nM Atto 488 ALG-2", "data/03-02-2022/49.5_ DOPC_50_ DOPS_0.5_ Atto 647/200 nM Atto 488 ALG-2"]
-#     # exp_dir = ["data/11-27-2021/DOPC_DOPS_10__Atto/200 nM ALG2", "data/11-27-2021/DOPC_DOPS_30__Atto/200 nM ALG2", "data/11-27-2021/DOPC_DOPS_50__Atto"]
-#     exp_dir = ["data/01-11-2022/10_DOPS 89.5_DOPC 0.5_Atto/200nM ALG2", "data/01-11-2022/30_DOPS 69.5_ DOPC 0.5 _Atto/200nM ALG2 A78C", "data/01-11-2022/50_DOPS 49.5_ DOPC 0.5_Atto/200nM ALG2"]
-#     channels_of_interest, detect_channel, meta_label, pixel_threshold, detail = [0, 1], 2, meta_label, pixel_threshold, True
-#     process_dir(exp_dir, channels_of_interest, detect_channel, meta_label, pixel_threshold, detail)
+if __name__ == "__main__":
+  pixel_thresholds = [10, 15, 20]
+  meta_labels = [f"combined_threshold_March_{pixel_threshold}_pixel" for pixel_threshold in pixel_thresholds]
+  for pixel_threshold, meta_label in iter(zip(pixel_thresholds, meta_labels)):
+    print("Start on thresh: " + str(pixel_threshold) + " and label: " + str(meta_label))
+    exp_dir = ["data/03-03-2022/89.5_ DOPC_10_DOPS_0.5_ Atto/200 nM Atto 488 ALG2", "data/03-02-2022/69.5_ DOPC_30_ DOPS_0.5_ Atto 647/200 nM Atto 488 ALG-2", "data/03-02-2022/49.5_ DOPC_50_ DOPS_0.5_ Atto 647/200 nM Atto 488 ALG-2"]
+    # exp_dir = ["data/11-27-2021/DOPC_DOPS_10__Atto/200 nM ALG2", "data/11-27-2021/DOPC_DOPS_30__Atto/200 nM ALG2", "data/11-27-2021/DOPC_DOPS_50__Atto"]
+    # exp_dir = ["data/01-11-2022/10_DOPS 89.5_DOPC 0.5_Atto/200nM ALG2", "data/01-11-2022/30_DOPS 69.5_ DOPC 0.5 _Atto/200nM ALG2 A78C", "data/01-11-2022/50_DOPS 49.5_ DOPC 0.5_Atto/200nM ALG2"]
+    channels_of_interest, detect_channel, meta_label, pixel_threshold, detail = [0, 1], 2, meta_label, pixel_threshold, True
+    process_dir(exp_dir, channels_of_interest, detect_channel, meta_label, pixel_threshold, detail)
 
 """Code used for incoporating the grouped run"""
 # for dir in exp_dir:

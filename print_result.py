@@ -4,7 +4,7 @@ from os.path import join
 import pandas as pd
 import numpy as np
 
-targets = ["15_pixel_data_03-03-2022_89.5_ DOPC_10_DOPS_0.5_ Atto_200 nM Atto 488 ALG2"]
+targets = ["07_21_22_02-21-2022_repeat_overlap_ch0_upstream"]
 
 channels_of_interest = [0, 1]
 detail, frame_quality, square_quality = True, True, False

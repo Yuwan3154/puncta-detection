@@ -11,6 +11,9 @@ import argparse
 import warnings
 
 def extract_summary(summary_df, result_df, channels_of_interest, index, frame_quality=True, square_quality=True):
+    """
+    Function used for extracting the summary stats using all images in the same experiment folder.
+    """
     if square_quality:
         result_df = result_df[result_df["square quality"]]
     if frame_quality:
@@ -47,7 +50,7 @@ if __name__ == "__main__":
     parser.add_argument("--detail", type=bool, const=True, default=False, nargs="?")
     args = vars(parser.parse_args())
     print("Arguments", args)
-    meta_summary_file, meta_labels, pixel_thresholds, detail, frame_quality, square_quality = args["file"][0], args["label"], args["threshold"], args["detail"], True, False
+    meta_summary_file, meta_labels, pixel_thresholds, detail, frame_quality, square_quality = args["file"][0], args["label"], args["threshold"], args["detail"], True, True
     assert len(meta_labels) == len(pixel_thresholds)
     for i in range(len(pixel_thresholds)):
         meta_label, pixel_threshold = meta_labels[i], pixel_thresholds[i]

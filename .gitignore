@@ -130,3 +130,9 @@ dmypy.json
 
 # local data
 data
+results
+old_results
+old_manual_results
+SankalpDataSummary
+manual_labels
+manual_results
