@@ -4,10 +4,10 @@ from os.path import join
 import pandas as pd
 import numpy as np
 
-targets = ["03-14-22_by_ch_2.5li_backsub_69.5_ DOPC_30_ DOPS_0.5_ Atto_denoise_gaussian_blur_eqhist_1.1otsu_0.6detection_0.25diam_on_03_15_22"]
+targets = ["07_21_22_02-21-2022_repeat_overlap_ch0_upstream"]
 
 channels_of_interest = [0, 1]
-detail, frame_quality = True, False
+detail, frame_quality, square_quality = True, True, False
 result_files = []
 if not os.path.exists("results"):
     os.mkdir("results")
@@ -20,7 +20,7 @@ for result_file in result_files:
     result_df = pd.read_pickle(result_file)
     if not os.path.exists(f"{result_file}.csv"):
         result_df.to_csv(f"{result_file}.csv", index=False)
-    print_result(result_df, channels_of_interest, detail, frame_quality)
+    print_result(result_df, channels_of_interest, detail, frame_quality, square_quality)
 
 if not os.path.exists("manual_results"):
     os.mkdir("manual_results")

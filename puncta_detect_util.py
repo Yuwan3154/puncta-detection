@@ -1,10 +1,10 @@
 from multiprocessing.sharedctypes import Value
-import torch
+# import torch
 import numpy as np
 import pandas as pd
 import math
 import itertools
-from scipy.signal import correlate2d
+# from scipy.signal import correlate2d
 from skimage import io
 from skimage.filters import threshold_otsu, threshold_li, threshold_minimum, median, gaussian
 from skimage.morphology import disk
@@ -15,17 +15,21 @@ import scipy.ndimage.filters as filters
 from sklearn.preprocessing import StandardScaler, normalize
 from sklearn.mixture import GaussianMixture
 import cv2 as cv
-import joblib
+# import joblib
 import os
 from os.path import join
 import subprocess
-from sklearn.decomposition import PCA
-import scipy.ndimage as ndimage
-from scipy.optimize import curve_fit
+# from sklearn.decomposition import PCA
+# import scipy.ndimage as ndimage
+# from scipy.optimize import curve_fit
 import warnings
 warnings.filterwarnings('ignore')
 
 def extract_image(imfolder, lipid_channel):
+  """
+  Function for extracting the frames from a .tif series
+  for later GUV detection since that only works on singled out images.
+  """
   file_list = []
   for i in os.listdir(imfolder):
     if i.endswith(".tif"):
@@ -44,13 +48,16 @@ def extract_image(imfolder, lipid_channel):
       lipid = im[:, :, :, lipid_channel]
       for j in range(len(lipid)):
             frame_file_name = os.path.join(series_folder, "{}.jpeg".format(j))
-            io.imsave(fname=frame_file_name, arr=lipid[j, :, :])
+            io.imsave(fname=frame_file_name, arr=cv.convertScaleAbs(lipid[j, :, :], alpha = 1./256., beta=-.49999))
     except IndexError:
       lipid = im[:, :, lipid_channel]
       frame_file_name = os.path.join(series_folder, "0.jpeg")
       io.imsave(fname=frame_file_name, arr=lipid)
 
 def identify_img(imfolder, yolo_model_path, thresh=0.8):
+    """
+    Function for using yolov5 to detect the GUVs in the images.
+    """
     cwd = os.getcwd()
     os.chdir("yolov5")
     file_list = []
@@ -70,7 +77,10 @@ def identify_img(imfolder, yolo_model_path, thresh=0.8):
             print(e.output.decode('UTF-8'))
     os.chdir(cwd)
 
-def process_data(imfolder, folder_index_count, result, num_bins, channels_of_interest, lipid_ch, series_type, puncta_model, old_punctate, frame_punctate, verbose, puncta_pixel_threshold):
+def process_data(imfolder, folder_index_count, result, num_bins, channels_of_interest, lipid_ch, series_type, puncta_model, old_punctate, frame_punctate, verbose, puncta_pixel_threshold, pixel_threshold):
+    """
+    Pipeline for processing all data within the given imfolder.
+    """
     file_list = []
     for f in os.listdir(imfolder):
         if f.endswith(".tif"):
@@ -93,17 +103,16 @@ def process_data(imfolder, folder_index_count, result, num_bins, channels_of_int
                 lipid = np.array(im[:, :, lipid_ch]).reshape(1, im.shape[0], im.shape[1])
             else:
                 raise ValueError("Input image should have 3 or 4 channels.")
-            size = (5, 5)
             label_folder = os.path.sep.join(["yolov5", "runs", "detect", "exp{}".format(folder_index(folder_index_count))])
             # defines local maxima in the lipid channel
             num_frame = len(lipid)
-            cur_series = series_type(ch, lipid, imfolder, file_name, puncta_model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold[channel_of_interest])
+            cur_series = series_type(ch, lipid, imfolder, file_name, puncta_model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold[channel_of_interest], pixel_threshold)
             for j in range(num_frame):
-                label_file_name = os.path.sep.join([label_folder, "labels", "{}.txt".format(j)])
+                label_file_name = os.path.sep.join([label_folder, "labels", f"{j}.txt"])
                 try:
                     labels = pd.read_csv(label_file_name, sep=" ", header=None)
                     labels = np.array(labels)
-                    # excluding all GUVs classified as low_quality as
+                    # excluding all GUVs classified as low_quality
                     processed_labels = [label[1:] for label in labels if label[0] == 0]
                     # processed_labels = labels[:, 1:]
                 except FileNotFoundError:
@@ -118,8 +127,6 @@ def process_data(imfolder, folder_index_count, result, num_bins, channels_of_int
             if not old_punctate:
                 signal_df = signal_df.drop(columns=f"punctateness ch{channel_of_interest}")
 
-            temp = np.sum(np.array(signal_df[[f"value {i} ch{channel_of_interest}" for i in range(num_frame)]].isnull()), axis=1)
-            signal_df[f"quality ch{channel_of_interest}"] = np.logical_or(temp / num_frame <= (1 - 6 / num_frame), num_frame < 6)
             signal_df["num frame"] = num_frame
             signal_df = new_punctate(signal_df, channel_of_interest)
             signal_df_lst.append(signal_df)
@@ -142,13 +149,17 @@ def process_data(imfolder, folder_index_count, result, num_bins, channels_of_int
         else:
             result = pd.concat([result, final_df], axis=0, join="outer", ignore_index=True)
 
-        # makes sure the correct label is read for the next image file
+        # makes sure the correct label .txt is read for the next image file
         folder_index_count += 1
     result = result.astype({"num frame": int})
     result = square_quality(result)
+    result = channel_quality(result, channels_of_interest)
     return result, folder_index_count
 
-def manual_process_data(manual_label_df_file_path, channels_of_interest, upstream_channel, puncta_pixel_threshold, dataset_threshold_mode="by_channel"):
+def manual_process_data(manual_label_df_file_path, channels_of_interest, upstream_channel, puncta_pixel_threshold, pixel_threshold, dataset_threshold_mode="by_channel"):
+    """
+    Pipeline for processing all data within the given imfolder, specifically for manually labeled GUVs.
+    """
     manual_label_df = pd.read_csv(manual_label_df_file_path)
     manual_label_df = manual_label_df[["file path", "image size", "num frame", "top left x", "top left y", "bottom right x", "bottom right y"]]
     if dataset_threshold_mode == "given":
@@ -200,7 +211,7 @@ def manual_process_data(manual_label_df_file_path, channels_of_interest, upstrea
                 for row in cur_df.index:
                     x1, x2, y1, y2 = manual_label_position(cur_df.loc[row])
                     try:
-                        cur_puncta = get_maxima(get_img_sec(cur_ch_img, x1, x2, y1, y2, None))
+                        cur_puncta = get_maxima(get_img_sec(cur_ch_img, x1, x2, y1, y2, None), pixel_threshold)
                     except ValueError:
                         cur_puncta = Puncta(0, [], [])
                     manual_label_df.at[row, f"puncta {j} ch{ch}"] = cur_puncta
@@ -215,12 +226,17 @@ def manual_process_data(manual_label_df_file_path, channels_of_interest, upstrea
     manual_label_df = new_manual_colocalization(manual_label_df, channels_of_interest, upstream_channel, puncta_pixel_threshold)
     return manual_label_df
 
-def print_result(result, channels_of_interest, detail=True, frame_quality=True):
-    result = result[result["square quality"]]
+def print_result(result, channels_of_interest, detail=True, frame_quality=True, square_quality=True):
+    """
+    Function for printing the summarized results (proportions) from the result DataFrame.
+    """
+    if square_quality:
+        result = result[result["square quality"]]
     if frame_quality:
         result = result[result[f"quality ch{channels_of_interest[0]}"]]
     result["temp folder"] = list(map(lambda f: os.path.sep.join(f.split(os.path.sep)[:-1]), result["folder"]))
-
+    
+    print()
     print("2-channel colocalization")
     # 2-channel colocalization
     for folder in (result["folder"]).unique():
@@ -233,26 +249,25 @@ def print_result(result, channels_of_interest, detail=True, frame_quality=True):
                 cur_weight = np.mean(cur_chs_df[f"colocalization weight ch{ch1} ch{ch2}"])
                 cur_folder_result.extend([cur_percent] * len(cur_chs_df))
                 if detail:
-                    print(f"The percent colocalization for {folder}{file_name} between channels {ch1} and {ch2} is {cur_percent} with average weight {cur_weight}.")
+                    print(f"The percent colocalization for {folder}{os.path.sep}{file_name} between channels {ch1} and {ch2} is {cur_percent} with average weight {cur_weight}.")
         # if detail:
         #     print()
         #     print(f"The percent colocalization for {folder} between channels {ch1} and {ch2} is {np.mean(cur_folder_result)}.")
         #     print()
 
+    print()
     for temp_folder in (result["temp folder"]).unique():
         cur_folder_df = result[result["temp folder"] == temp_folder]
         for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
-            print()
             ch_percent = np.mean(cur_folder_df[cur_folder_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()][f"colocalization ch{ch1} ch{ch2}"])
             print(f"The overall percent colocalization for {temp_folder} between channels {ch1} and {ch2} is {ch_percent}.")
-            print()
 
+    print()
     for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
-        print()
         ch_percent = np.mean(result[result[f"colocalization weight ch{ch1} ch{ch2}"].notna()][f"colocalization ch{ch1} ch{ch2}"])
         print(f"The overall percent colocalization between channels {ch1} and {ch2} is {ch_percent}.")
-        print()
 
+    print()
     print("2-channel new colocalization")
     # 2-channel new colocalization
     for folder in (result["folder"]).unique():
@@ -264,27 +279,25 @@ def print_result(result, channels_of_interest, detail=True, frame_quality=True):
                 cur_percent = np.mean(cur_chs_df[f"new colocalization ch{ch1} ch{ch2}"])
                 cur_folder_result.extend([cur_percent] * len(cur_chs_df))
                 if detail:
-                    print(f"The percent new colocalization for {folder}{file_name} between channels {ch1} and {ch2} is {cur_percent}.")
+                    print(f"The percent new colocalization for {folder}{os.path.sep}{file_name} between channels {ch1} and {ch2} is {cur_percent}.")
         # if detail:
         #     print()
         #     print(f"The percent new colocalization for {folder} between channels {ch1} and {ch2} is {np.mean(cur_folder_result)}.")
         #     print()
-
+    
+    print()
     for temp_folder in (result["temp folder"]).unique():
             cur_folder_df = result[result["temp folder"] == temp_folder]
             for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
-                print()
                 ch_percent = np.mean(cur_folder_df[cur_folder_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()][f"new colocalization ch{ch1} ch{ch2}"])
                 print(f"The overall percent new colocalization for {temp_folder} between channels {ch1} and {ch2} is {ch_percent}.")
-                print()
 
+    print()
     for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
-        print()
         ch_percent = np.mean(result[result[f"colocalization weight ch{ch1} ch{ch2}"].notna()][f"new colocalization ch{ch1} ch{ch2}"])
         print(f"The overall percent new colocalization between channels {ch1} and {ch2} is {ch_percent}.")
-        print()
     
-      
+    print()
     print("channel punctateness")
     # channel punctateness
     for folder in (result["folder"]).unique():
@@ -295,41 +308,39 @@ def print_result(result, channels_of_interest, detail=True, frame_quality=True):
           cur_percent = np.mean(cur_file_df[cur_file_df[f"quality ch{ch}"]][f"new punctate ch{ch}"])
           cur_folder_result[ch].extend([cur_percent] * len(cur_file_df))
           if detail:
-            print(f"The percent punctateness for {folder}{file_name} in channel {ch} is {cur_percent}.")
+            print(f"The percent punctateness for {folder}{os.path.sep}{file_name} in channel {ch} is {cur_percent}.")
       for ch in channels_of_interest:
         if detail:
-            print()
             print(f"The percent punctateness for {folder} in channel {ch} is {np.mean(cur_folder_result[ch])}.")
-            print()
 
+    print()
     for temp_folder in (result["temp folder"]).unique():
         cur_folder_df = result[result["temp folder"] == temp_folder]
         for ch in channels_of_interest:
-            print()
             ch_percent = np.mean(cur_folder_df[f"new punctate ch{ch}"])
             print(f"The overall percent punctateness for {temp_folder} in channel {ch} is {ch_percent}.")
-            print()
 
+    print()
     for ch in channels_of_interest:
-        print()
         ch_percent = np.mean(result[f"new punctate ch{ch}"])
         print(f"The overall percent punctateness in channel {ch} is {ch_percent}.")
-        print()
 
 def manual_print_result(manual_label_df, channels_of_interest, detail=True):
+    """
+    Function for printing the summarized results (proportions) from the manual_label_df DataFrame.
+    """
     print("2-channel colocalization")
     # 2-channel colocalization
     for file_path in (manual_label_df["file path"]).unique():
         cur_file_df = manual_label_df[np.array(manual_label_df["file path"] == file_path)]
         for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
-            cur_chs_df = cur_file_df[
-                np.array(cur_file_df[f"new punctate ch{ch1}"]) * np.array(cur_file_df[f"new punctate ch{ch2}"])]
+            cur_chs_df = cur_file_df
             cur_chs_df = cur_chs_df[cur_chs_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()]
-            cur_percent = np.mean(cur_chs_df[f"colocalization ch{ch1} ch{ch2}"])
+            cur_percent = np.mean(np.nan_to_num(cur_chs_df[f"colocalization ch{ch1} ch{ch2}"], copy=True, nan=0))
             if detail:
                 print(f"The percent colocalization for {file_path} between channels {ch1} and {ch2} is {cur_percent}.")
     for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
-        ch_percent = np.mean(manual_label_df[f"colocalization ch{ch1} ch{ch2}"])
+        ch_percent = np.mean(np.nan_to_num(manual_label_df[f"colocalization ch{ch1} ch{ch2}"], copy=True, nan=0))
         print(f"The overall percent colocalization between channels {ch1} and {ch2} is {ch_percent}.")
 
     print("2-channel new colocalization")
@@ -337,14 +348,13 @@ def manual_print_result(manual_label_df, channels_of_interest, detail=True):
     for file_path in (manual_label_df["file path"]).unique():
         cur_file_df = manual_label_df[np.array(manual_label_df["file path"] == file_path)]
         for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
-            cur_chs_df = cur_file_df[
-                np.array(cur_file_df[f"new punctate ch{ch1}"]) * np.array(cur_file_df[f"new punctate ch{ch2}"])]
+            cur_chs_df = cur_file_df
             cur_chs_df = cur_chs_df[cur_chs_df[f"colocalization weight ch{ch1} ch{ch2}"].notna()]
-            cur_percent = np.mean(cur_chs_df[f"new colocalization ch{ch1} ch{ch2}"])
+            cur_percent = np.mean(np.nan_to_num(cur_chs_df[f"new colocalization ch{ch1} ch{ch2}"], copy=True, nan=0))
             if detail:
                 print(f"The percent new colocalization for {file_path} between channels {ch1} and {ch2} is {cur_percent}.")
     for ch1, ch2 in itertools.combinations(channels_of_interest, 2):
-        ch_percent = np.mean(manual_label_df[f"new colocalization ch{ch1} ch{ch2}"])
+        ch_percent = np.mean(np.nan_to_num(manual_label_df[f"new colocalization ch{ch1} ch{ch2}"], copy=True, nan=0))
         print(f"The overall percent new colocalization between channels {ch1} and {ch2} is {ch_percent}.")
 
     print("3-channel colocalization")
@@ -352,14 +362,13 @@ def manual_print_result(manual_label_df, channels_of_interest, detail=True):
     for file_path in (manual_label_df["file path"]).unique():
         cur_file_df = manual_label_df[np.array(manual_label_df["file path"] == file_path)]
         for ch1, ch2, ch3 in itertools.combinations(channels_of_interest, 3):
-            cur_chs_df = cur_file_df[np.array(cur_file_df[f"new punctate ch{ch1}"]) * np.array(
-                cur_file_df[f"new punctate ch{ch2}"]) * np.array(cur_file_df[f"new punctate ch{ch3}"])]
+            cur_chs_df = cur_file_df
             cur_chs_df = cur_chs_df[cur_chs_df[f"colocalization weight ch{ch1} ch{ch2} ch{ch3}"].notna()]
-            cur_percent = np.mean(cur_chs_df[f"colocalization ch{ch1} ch{ch2} ch{ch3}"])
+            cur_percent = np.mean(np.nan_to_num(cur_chs_df[f"colocalization ch{ch1} ch{ch2} ch{ch3}"], copy=True, nan=0))
             if detail:
                 print(f"The percent colocalization for {file_path} between channels {ch1}, {ch2} and {ch3} is {cur_percent}.")
     for ch1, ch2, ch3 in itertools.combinations(channels_of_interest, 3):
-        ch_percent = np.mean(manual_label_df[f"colocalization ch{ch1} ch{ch2} ch{ch3}"])
+        ch_percent = np.mean(np.nan_to_num(manual_label_df[f"colocalization ch{ch1} ch{ch2} ch{ch3}"], copy=True, nan=0))
         print(f"The overall percent colocalization between channels {ch1}, {ch2} and {ch3} is {ch_percent}.")
 
     # 3-channel new colocalization
@@ -367,14 +376,13 @@ def manual_print_result(manual_label_df, channels_of_interest, detail=True):
     for file_path in (manual_label_df["file path"]).unique():
         cur_file_df = manual_label_df[np.array(manual_label_df["file path"] == file_path)]
         for ch1, ch2, ch3 in itertools.combinations(channels_of_interest, 3):
-            cur_chs_df = cur_file_df[np.array(cur_file_df[f"new punctate ch{ch1}"]) * np.array(
-                cur_file_df[f"new punctate ch{ch2}"]) * np.array(cur_file_df[f"new punctate ch{ch3}"])]
+            cur_chs_df = cur_file_df
             cur_chs_df = cur_chs_df[cur_chs_df[f"colocalization weight ch{ch1} ch{ch2} ch{ch3}"].notna()]
-            cur_percent = np.mean(cur_chs_df[f"new colocalization ch{ch1} ch{ch2} ch{ch3}"])
+            cur_percent = np.mean(np.nan_to_num(cur_chs_df[f"new colocalization ch{ch1} ch{ch2} ch{ch3}"], copy=True, nan=0))
             if detail:
                 print(f"The percent new colocalization for {file_path} between channels {ch1}, {ch2} and {ch3} is {cur_percent}.")
     for ch1, ch2, ch3 in itertools.combinations(channels_of_interest, 3):
-        ch_percent = np.mean(manual_label_df[f"new colocalization ch{ch1} ch{ch2} ch{ch3}"])
+        ch_percent = np.mean(np.nan_to_num(manual_label_df[f"new colocalization ch{ch1} ch{ch2} ch{ch3}"], copy=True, nan=0))
         print(f"The overall percent new colocalization between channels {ch1}, {ch2} and {ch3} is {ch_percent}.")
 
 def folder_index(x):
@@ -425,11 +433,33 @@ def similar_width_height(w, h):
         return False
 
 def square_quality(df):
+    """
+    Add a column "square quality" to the df DataFrame, a boolean
+    checking if the detected GUV has similar width and height.
+    """
+    df = df.copy()
     quality_result = []
     for i in range(len(df)):
         init_frame = df["initial frame"][i]
         quality_result.append(similar_width_height(df[f"w {init_frame}"][i], df[f"h {init_frame}"][i]))
     df["square quality"] = quality_result
+    return df
+
+def channel_quality(df, channels_of_interest):
+    """
+    Add a column "quality ch<>" to the df Dataframe, a boolean
+    checking if the GUV is either:
+    1. present in more than 6 frames of the series in the specified channel
+    2. in a series with fewer than 6 frames
+    """
+    df = df.copy()
+    for channel_of_interest in channels_of_interest:
+        for num_frame in df["num frame"].unique():
+            cur_df = df[df["num frame"] == num_frame]
+            cur_idx = cur_df.index
+            temp = np.sum(np.array(cur_df[[f"value {i} ch{channel_of_interest}" for i in range(num_frame)]].isnull()), axis=1)
+            # df.loc[cur_idx, f"quality ch{channel_of_interest}"] = np.array(temp / num_frame <= (1 - 6 / num_frame))
+            df.loc[cur_idx, f"quality ch{channel_of_interest}"] = np.logical_or(temp / num_frame <= (1 - 6 / num_frame), num_frame < 6)
     return df
 
 def quantify(xywh, c1, lipid, f, img_sz, detection=False):
@@ -530,7 +560,7 @@ class Guv:
     A class storing the positional information of a GUV across time series.
     """
 
-    def __init__(self, first_xywh, initial_frame, folder, file_name, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_threshold):
+    def __init__(self, first_xywh, initial_frame, folder, file_name, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_threshold, pixel_threshold):
         self.xs, self.ys, self.ws, self.hs = [], [], [], []
         self.values = []
         self.candidate = first_xywh
@@ -546,6 +576,7 @@ class Guv:
         self.old_punctate = old_punctate
         self.frame_punctate = frame_punctate
         self.puncta_pixel_threshold = puncta_pixel_threshold
+        self.pixel_threshold = pixel_threshold
 
     def update_pos(self, xywh):
         self.x = xywh[0]
@@ -564,15 +595,18 @@ class Guv:
         return score < dim_threshold
 
     def distance_to_coord(self, xywh):
-        """return a score representing the closeness of two GUVs; a smaller number implies closer"""
+        """return a float distance from this GUV to the given xywh coordinate."""
         score = (self.x - xywh[0]) ** 2 + (self.y - xywh[1]) ** 2
         return score
 
     def distance_to_guv(self, guv):
+        """return a float distance from this GUV to the given GUV."""
         dist = np.sqrt(sum((self.get_pos() - guv.get_pos()) ** 2))
         return dist
 
     def add_value(self, ch_mask, ch, lipid, f):
+        """calculate the intensity of this GUV, capture all its puncta and colocalization information
+        and update the position of this GUV."""
         if self.candidate is None:
             self.values.append(np.nan)  # TBD!!!!!
             self.update_pos([np.nan] * 4)
@@ -582,27 +616,32 @@ class Guv:
                 score = int(predict(self.candidate, ch, f, self.model, self.img_sz, self.num_bins))
                 self.punctate += score
             x1, x2, y1, y2 = get_coord(self.candidate, self.img_sz)
-            self.puncta_param.append(get_maxima(get_img_sec(ch_mask, x1, x2, y1, y2, f)))
+            self.puncta_param.append(get_maxima(get_img_sec(ch_mask, x1, x2, y1, y2, f), self.pixel_threshold))
             self.update_pos(self.candidate)
             self.values.append(quantify(self.candidate, ch, lipid, f, self.img_sz, False))
             self.candidate = None
 
     def get_values(self):
+        """return a list of lists, containing the recorded values of this GUV across frames, with a default value of np.nan."""
         value_empty = [np.nan for _ in range(self.init_f)]
         position_empty = [np.nan for _ in range(self.init_f)]
-        puncta_param_empty = [Puncta(0, [], []) for _ in range(self.init_f)]
-        return [self.folder, self.file_name, self.img_sz, self.get_averaged_punctateness(), self.adj, self.init_f] + value_empty + self.values + puncta_param_empty + self.puncta_param + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
+        puncta_param_empty = [Puncta(0, [], []).to_dict() for _ in range(self.init_f)]
+        return [self.folder, self.file_name, self.img_sz, self.get_averaged_punctateness(), self.adj, self.init_f] + value_empty + self.values + puncta_param_empty + [puncta.to_dict() for puncta in self.puncta_param] + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
 
     def get_averaged_punctateness(self):
+        """NOT IN USE."""
         if np.isnan(self.punctate):
             return np.nan
         else:
             return round(self.punctate / self.frame_punctate)
 
     def get_pos(self):
+        """Get the latest position of this GUV."""
         return np.array((self.xs[-1], self.ys[-1]))
 
     def check_adj(guvs):
+        """Check if the given 2 GUVs have overlapping bounding boxes.
+        If so, set the field adj to be true."""
         guv1, guv2 = guvs[0], guvs[1]
         if guv1.adj and guv2.adj:
             return
@@ -610,10 +649,9 @@ class Guv:
         g1_bbox, g2_bbox = [g1_coord[0], g1_coord[2], g1_coord[1], g1_coord[3]], [g2_coord[0], g2_coord[2], g2_coord[1], g2_coord[3]]
         if check_overlap(g1_bbox, g2_bbox):
             guv1.adj, guv2.adj = True, True
-        else:
-            return
 
 def check_overlap(bbox1, bbox2):
+    """Check if the two bounding boxes overlap."""
     # If one rectangle is on left side of other            @src https://www.geeksforgeeks.org/find-two-rectangles-overlap/
     if (bbox1[0] >= bbox2[2] or bbox2[0] >= bbox1[2]):
         return False
@@ -625,9 +663,15 @@ def check_overlap(bbox1, bbox2):
 
 
 class Z_Stack_Guv(Guv):
+    """
+    An child class of GUV for handling Z-stack series, where the
+    size of the cross-section of the same GUV changes as depth changes.
+    Also this class has an additional value field recording the frame
+    of the equator of the GUV.
+    """
 
-    def __init__(self, first_xywh, initial_frame, folder, file_name, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_threshold):
-        Guv.__init__(self, first_xywh, initial_frame, folder, file_name, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_threshold)
+    def __init__(self, first_xywh, initial_frame, folder, file_name, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_threshold, pixel_threshold):
+        Guv.__init__(self, first_xywh, initial_frame, folder, file_name, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_threshold, pixel_threshold)
         self.equa_frame = None
         self.equa_size = 0
 
@@ -641,7 +685,7 @@ class Z_Stack_Guv(Guv):
                 score = int(predict(self.candidate, ch, f, self.model, self.img_sz, self.num_bins, self.old_punctate))
                 self.punctate += score
             x1, x2, y1, y2 = get_coord(self.candidate, self.img_sz)
-            self.puncta_param.append(get_maxima(get_img_sec(ch_mask, x1, x2, y1, y2, f)))
+            self.puncta_param.append(get_maxima(get_img_sec(ch_mask, x1, x2, y1, y2, f), self.pixel_threshold))
             self.update_pos(self.candidate)
             self.update_equa(self.candidate, f)
             self.values.append(quantify(self.candidate, ch, lipid, f, self.img_sz, False))
@@ -655,13 +699,13 @@ class Z_Stack_Guv(Guv):
     def get_values(self):
         value_empty = [np.nan for _ in range(self.init_f)]
         position_empty = [np.nan for _ in range(self.init_f)]
-        puncta_param_empty = [Puncta(0, [], []) for _ in range(self.init_f)]
-        return [self.folder, self.file_name, self.img_sz, self.get_averaged_punctateness(), self.adj, self.init_f,self.equa_frame, self.equa_size] + value_empty + self.values + puncta_param_empty + self.puncta_param + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
+        puncta_param_empty = [Puncta(0, [], []).to_dict() for _ in range(self.init_f)]
+        return [self.folder, self.file_name, self.img_sz, self.get_averaged_punctateness(), self.adj, self.init_f,self.equa_frame, self.equa_size] + value_empty + self.values + puncta_param_empty + [puncta.to_dict() for puncta in self.puncta_param] + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
 
 class Series:
     """A class storing the GUVs from the same series."""
 
-    def __init__(self, ch, lipid, folder, file_name, model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold):
+    def __init__(self, ch, lipid, folder, file_name, model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold, pixel_threshold):
         self.guv_lst = []
         self.frame = 0
         self.ch = ch
@@ -675,14 +719,17 @@ class Series:
         self.old_punctate = old_punctate
         self.frame_punctate = frame_punctate
         self.puncta_pixel_threshold = puncta_pixel_threshold
+        self.pixel_threshold = pixel_threshold
 
     def process_frame(self, guvs):
+        """Function to process everything and advance to the next frame."""
         add_lst = self.match_all(guvs)
         self.guv_lst.extend(add_lst)
         self.add_value_all()
         self.check_adj_all()
 
     def add_value_all(self):
+        """Let all GUVs update the recorded values."""
         for guv in self.guv_lst:
             ch = self.ch[self.frame, :, :]
             ch_mask = preprocess_for_puncta(ch[:, :], self.puncta_pixel_threshold)
@@ -690,9 +737,11 @@ class Series:
         self.frame += 1
 
     def match_all(self, guvs, num_trial=5):
+        """Function for matching all detected GUVs in the next
+        frame with all existing GUVs."""
         best_add_lst = None
         best_match_dic = None
-        best_score = -1
+        best_score = float("inf")
         for _ in range(num_trial):
             cur_add_lst = []
             cur_score = 0
@@ -708,13 +757,13 @@ class Series:
                 if best_match is None:
                     cur_add_lst.append(
                         Guv(xywh, self.frame, self.folder, self.file_name, self.img_sz, self.model, self.num_bins,
-                            self.old_punctate, self.puncta_pixel_threshold))
+                            self.old_punctate, self.puncta_pixel_threshold, self.pixel_threshold))
                 elif cur_match_dic.get(best_match, None) is None:
                     cur_match_dic[best_match] = xywh
                     cur_score += best_match.distance_to_coord(xywh)
                 else:
                     break
-            if cur_score > best_score:
+            if cur_score < best_score:
                 best_match_dic = cur_match_dic
                 best_add_lst = cur_add_lst
                 best_score = cur_score
@@ -724,21 +773,31 @@ class Series:
         return best_add_lst
 
     def check_adj_all(self):
+        """Let all GUVs do adjacency check."""
         pw_lst = itertools.combinations(self.guv_lst, 2)
         map(Guv.check_adj, pw_lst)
 
     def get_values(self):
+        """Return a list of GUV value lists."""
         return [guv.get_values() for guv in self.guv_lst]
 
     def get_col_names(self, ch):
+        """Return the name of the fields for constructing the result DataFrame.
+        TODO: rewrite the return type pf GUV's get_values() to be a dictionary."""
         return ["folder", "file name", "image size", f"punctateness ch{ch}", "adjacent", "initial frame"] + [
             f"value {i} ch{ch}" for i in range(self.num_frame)] + [f"puncta {i} ch{ch}" for i in range(self.num_frame)] + [f"x {i}" for i in range(self.num_frame)] + [
                    f"y {i}" for i in range(self.num_frame)] + [f"w {i}" for i in range(self.num_frame)] + [f"h {i}" for i in range(self.num_frame)]
 
 class Z_Stack_Series(Series):
+    """
+    A child class of Series for handling Z-stack series, where the
+    size of the cross-section of the same GUV changes as depth changes.
+    Also this class has an additional value field recording the frame
+    of the equator of the GUV.
+    """
 
-    def __init__(self, ch, lipid, folder, file_name, model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold):
-        Series.__init__(self, ch, lipid, folder, file_name, model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold)
+    def __init__(self, ch, lipid, folder, file_name, model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold, pixel_threshold):
+        Series.__init__(self, ch, lipid, folder, file_name, model, num_bins, num_frame, old_punctate, frame_punctate, puncta_pixel_threshold, pixel_threshold)
         self.dist_thresh = 10
 
     def match_all(self, guvs, num_trial=5):
@@ -761,7 +820,7 @@ class Z_Stack_Series(Series):
                 if best_match is None:
                     cur_add_lst.append(
                         Z_Stack_Guv(xywh, self.frame, self.folder, self.file_name, self.img_sz, self.model, self.num_bins,
-                                    self.old_punctate, self.frame_punctate, self.puncta_pixel_threshold))
+                                    self.old_punctate, self.frame_punctate, self.puncta_pixel_threshold, self.pixel_threshold))
                 elif cur_match_dic.get(best_match, None) is None:
                     cur_match_dic[best_match] = xywh
                     cur_score += best_match.distance_to_coord(xywh)
@@ -784,6 +843,10 @@ class Z_Stack_Series(Series):
                    f"y {i}" for i in range(self.num_frame)] + [f"w {i}" for i in range(self.num_frame)] + [f"h {i}" for i in range(self.num_frame)]
 
 class Puncta:
+    """
+    A class for recording the value of the puncta for a GUV in a specific frame.
+    """
+
     def __init__(self, num_puncta, puncta_coords, puncta_bbox):
         self.num_puncta = num_puncta
         self.puncta_coords = tuple(puncta_coords)
@@ -798,21 +861,23 @@ class Puncta:
     def get_puncta_bboxes(self):
         return self.puncta_bbox
 
-# Puncta Quant
-def get_maxima(img):
+    def to_dict(self):
+        return {"num_puncta": self.get_num_puncta(), "puncta_coords":self.get_puncta_coords(), "puncta_bboxes":self.get_puncta_bboxes()}
+
+def get_maxima(img, pixel_threshold):
     """Use processed image to pick up puncta information.
     Input: a 2D array
-    Output: a list with 3 entries:
-      1. number of punctum found
-      2. the pixel value of the punctum found
-      3. a list of coordinates of the puncta in the form of tuples (x, y).
+    Output: a Puncta object with 3 fields:
+        1. number of puncta found.
+        2. the coordinates of the puncta found.
+        3. a list of coordinates of the puncta in the form of tuples (x, y).
     """
     labels = measure.label(img)
     center_of_img = np.array([img.shape[1], img.shape[0]]) / 2
     # cutoff = max(img.shape) / 4
     coords, bboxes = [], []
     for label_property in measure.regionprops(labels):
-        if label_property.area >= 5:
+        if label_property.area >= pixel_threshold:
             cur_center = (int(label_property.centroid[1]), int(label_property.centroid[0]))
             # if sum(np.sqrt((cur_center - center_of_img)**2)) > cutoff:
             coords.append(cur_center)
@@ -825,6 +890,7 @@ def best_gaussian_mixture(data, diam):
     Given a list of coordinates of candidate punctum, attempt to
     combine them into real punctum. The output is also a list of
     coordinates. All input and output has the form of (x, y).
+    NOT IN USE.
     """
     if len(data) <= 1:
         return data
@@ -955,6 +1021,7 @@ def colocalization(df, chs):
     return df
 
 def pair_points(group1, group2, threshold):
+    """NOT IN USE"""
     if len(group1) == 0:
         return 0
     results = []
@@ -996,6 +1063,7 @@ def preprocess_for_puncta(img, background):
 
 # Manual Colocalization
 def manual_label_position(row_series):
+    """Get the coordinates of the manually labeled GUVs."""
     return row_series["top left x"], row_series["bottom right x"], row_series["top left y"], row_series[
         "bottom right y"]
 
@@ -1008,6 +1076,7 @@ def manual_colocalization(df, chs, upstream_channel):
     punctum between channel 0 and channel 1, and a column named
     "colocalization weight ch0 ch1" has the total number of punctum
     identified in all frames and 2 channels combined.
+    Specifically for manually labeled GUVs.
     """
     df = df.copy()
     for ch1, ch2 in itertools.combinations(chs, 2):
@@ -1017,17 +1086,25 @@ def manual_colocalization(df, chs, upstream_channel):
         for i in range(len(df)):
             cur_GUV = df.iloc[i]
             for j in range(cur_GUV["num frame"]):
-                ch1_puncta_coord, ch2_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords()
-                x1, x2, y1, y2 = manual_label_position(cur_GUV)
-                threshold = 5 # max(x2 - x1, y2 - y1) / 4
-                if ch1 == upstream_channel or len(ch1_puncta_coord) > len(ch2_puncta_coord):
-                    ch1_puncta_coord, ch2_puncta_coord = ch2_puncta_coord, ch1_puncta_coord
-                total[i] += len(ch2_puncta_coord)
-                for puncta2 in ch2_puncta_coord:
-                    for puncta1 in ch1_puncta_coord:
-                        if math.sqrt(sum((np.array(puncta1) - np.array(puncta2)) ** 2)) < threshold:
-                            coloc[i] += 1
+                ch1_puncta_coords, ch2_puncta_coords = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords()
+                ch1_puncta_bboxes, ch2_puncta_bboxes = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_bboxes(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_bboxes()
+                # x1, x2, y1, y2 = manual_label_position(cur_GUV)
+                # threshold = 5 # max(x2 - x1, y2 - y1) / 4
+                total[i] += max(len(ch1_puncta_coords), len(ch2_puncta_coords))
+                threshold = 5
+                if len(ch1_puncta_coords) > len(ch2_puncta_coords):
+                    ch1_puncta_coords, ch2_puncta_coords = ch2_puncta_coords, ch1_puncta_coords
+                    ch1_puncta_bboxes, ch2_puncta_bboxes = ch2_puncta_bboxes, ch1_puncta_bboxes
+                for m in range(len(ch2_puncta_coords)):
+                    cur_coloc = 0
+                    ch2_puncta_coord, ch2_puncta_bbox = ch2_puncta_coords[m], ch2_puncta_bboxes[m]
+                    for n in range(len(ch1_puncta_coords)):
+                        ch1_puncta_coord, ch1_puncta_bbox = ch1_puncta_coords[n], ch1_puncta_bboxes[n]
+                        # Determining colocalzation conditions
+                        if check_overlap(ch1_puncta_bbox, ch2_puncta_bbox) or math.sqrt(sum((np.array(ch1_puncta_coord) - np.array(ch2_puncta_coord))**2)) < threshold:
+                            cur_coloc = 1
                             break
+                    coloc[i] += cur_coloc
         df[f"colocalization ch{ch1} ch{ch2}"] = np.array(coloc) / np.array(total)
         df[f"colocalization weight ch{ch1} ch{ch2}"] = np.array(total)
 
@@ -1039,21 +1116,30 @@ def manual_colocalization(df, chs, upstream_channel):
             for i in range(len(df)):
                 cur_GUV = df.iloc[i]
                 for j in range(cur_GUV["num frame"]):
-                    ch1_puncta_coord, ch2_puncta_coord, ch3_puncta_coord = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch3}"].get_puncta_coords()
-                    chs_puncta_coord_dict = dict(list(zip([ch1, ch2, ch3], [ch1_puncta_coord, ch2_puncta_coord, ch3_puncta_coord])))
-                    total[i] += len(chs_puncta_coord_dict[upstream_channel])
-                    x1, x2, y1, y2 = manual_label_position(cur_GUV)
+                    ch1_puncta_coords, ch2_puncta_coords, ch3_puncta_coords = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch3}"].get_puncta_coords()
+                    ch1_puncta_bboxes, ch2_puncta_bboxes, ch3_puncta_bboxes = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_bboxes(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_bboxes(), cur_GUV[f"puncta {j} ch{ch3}"].get_puncta_bboxes()
+                    chs_puncta_coords_dict = dict(list(zip([ch1, ch2, ch3], [ch1_puncta_coords, ch2_puncta_coords, ch3_puncta_coords])))
+                    chs_puncta_bboxes_dict = dict(list(zip([ch1, ch2, ch3], [ch1_puncta_bboxes, ch2_puncta_bboxes, ch3_puncta_bboxes])))
+                    total[i] += len(chs_puncta_coords_dict[upstream_channel])
+                    # x1, x2, y1, y2 = manual_label_position(cur_GUV)
                     threshold = 5 # max(x2 - x1, y2 - y1) / 4
-                    upstream_puncta_coord = chs_puncta_coord_dict.pop(upstream_channel)
-                    for upstream_puncta in upstream_puncta_coord:
-                        upstream_puncta = np.array(upstream_puncta)
-                        for pair in itertools.product(zip(*chs_puncta_coord_dict.values())):
-                            pair = pair[0]
-                            if len(pair) == 2:
-                                puncta1, puncta2 = np.array(pair[0]), np.array(pair[1])
-                                if math.sqrt(sum((upstream_puncta - puncta1) ** 2)) < threshold and math.sqrt(sum((upstream_puncta - puncta2) ** 2)) < threshold:
-                                    coloc[i] += 1
+                    upstream_puncta_coords, upstream_puncta_bboxes = chs_puncta_coords_dict.pop(upstream_channel), chs_puncta_bboxes_dict.pop(upstream_channel)
+                    remaining_ch1, remaining_ch2 = chs_puncta_coords_dict.keys()
+                    remaining_ch1_puncta_coords, remaining_ch1_puncta_bboxes = chs_puncta_coords_dict.pop(remaining_ch1), chs_puncta_bboxes_dict.pop(remaining_ch1)
+                    remaining_ch2_puncta_coords, remaining_ch2_puncta_bboxes = chs_puncta_coords_dict.pop(remaining_ch2), chs_puncta_bboxes_dict.pop(remaining_ch2)
+                    for k in range(len(upstream_puncta_coords)):
+                        upstream_puncta_coord, upstream_puncta_bbox = upstream_puncta_coords[k], upstream_puncta_bboxes[k]
+                        for m in range(len(remaining_ch2_puncta_coords)):
+                            remaining_ch2_puncta_coord, remaining_ch2_puncta_bbox = remaining_ch2_puncta_coords[m], remaining_ch2_puncta_bboxes[m]
+                            if not (check_overlap(upstream_puncta_bbox, remaining_ch2_puncta_bbox) or math.sqrt(sum((np.array(upstream_puncta_coord) - np.array(remaining_ch2_puncta_coord))**2)) < threshold):
+                                continue
+                            for n in range(len(remaining_ch1_puncta_coords)):
+                                remaining_ch1_puncta_coord, remaining_ch1_puncta_bbox = remaining_ch1_puncta_coords[n], remaining_ch1_puncta_bboxes[n]
+                                if (check_overlap(remaining_ch1_puncta_bbox, remaining_ch2_puncta_bbox) and check_overlap(remaining_ch1_puncta_bbox, upstream_puncta_bbox)) or \
+                                (math.sqrt(sum((np.array(remaining_ch1_puncta_coord) - np.array(remaining_ch2_puncta_coord))**2)) < threshold and math.sqrt(sum((np.array(remaining_ch1_puncta_coord) - np.array(upstream_puncta_coord))**2)) < threshold):
+                                    cur_coloc = 1
                                     break
+                        coloc[i] += cur_coloc
             df[f"colocalization ch{ch1} ch{ch2} ch{ch3}"] = np.array(coloc) / np.array(total)
             df[f"colocalization weight ch{ch1} ch{ch2} ch{ch3}"] = np.array(total)
     return df
@@ -1202,6 +1288,9 @@ def new_manual_colocalization(df, chs, upstream_channel, puncta_pixel_threshold)
     return df
 
 def dataset_threshold(path_list, channels_of_interest):
+    """
+    Used to calculate the amount of background subtraction using the pictures in the path_list.
+    """
     all_picture = None
     for img_folder in path_list:
         file_list = []
@@ -1224,11 +1313,14 @@ def dataset_threshold(path_list, channels_of_interest):
             else:
                 all_picture = np.concatenate((all_picture, chs_img), axis=0)
     try:
-        return 2.5 * threshold_li(all_picture)
+        return np.clip(2.5 * threshold_li(all_picture), 4000, 10000)
     except RuntimeError:
         return None
 
 def manual_dataset_threshold(manual_label_file_path_list, channels_of_interest):
+    """
+    Used to calculate the amount of background subtraction using the pictures in the path_list.
+    """
     all_picture = None
     for manual_label_df_file_path in manual_label_file_path_list:
         manual_label_df = pd.read_csv(manual_label_df_file_path)
@@ -1246,4 +1338,7 @@ def manual_dataset_threshold(manual_label_file_path_list, channels_of_interest):
                 all_picture = chs_img
             else:
                 all_picture = np.concatenate((all_picture, chs_img), axis=0)
-    return 2.5 * threshold_li(all_picture)
+    try:
+        return np.clip(2.5 * threshold_li(all_picture), 4000, 10000)
+    except RuntimeError:
+        return None
