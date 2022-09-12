@@ -462,17 +462,17 @@ def channel_quality(df, channels_of_interest):
             df.loc[cur_idx, f"quality ch{channel_of_interest}"] = np.logical_or(temp / num_frame <= (1 - 6 / num_frame), num_frame < 6)
     return df
 
-def quantify(xywh, c1, lipid, f, img_sz, detection=False):
+def quantify(xywh, ch, lipid, f, img_sz, detection=False):
     """
-    Takes 5 parameters: xywh, c1, lipid, f, detection;
+    Takes 5 parameters: xywh, ch, lipid, f, detection;
     returns a number representing the intensity of the image.
     """
     size = (3, 3)
     x1, x2, y1, y2 = get_coord(xywh, img_sz)
     if x1 == x2 or y1 == y2:
         return 0
-    c1_sec = get_img_sec(c1, x1, x2, y1, y2, f)
-    lipid_sec = get_img_sec(c1, x1, x2, y1, y2, f)
+    ch_sec = get_img_sec(ch, x1, x2, y1, y2, f)
+    lipid_sec = get_img_sec(ch, x1, x2, y1, y2, f)
     im_max = filters.maximum_filter(lipid_sec, size)
     im_min = filters.minimum_filter(lipid_sec, size)
     im_diff = im_max - im_min
@@ -483,14 +483,14 @@ def quantify(xywh, c1, lipid, f, img_sz, detection=False):
     thresh = thresh * 0.45
     bool_diff = (im_diff <= thresh)
 
-    masked_c1 = c1_sec.copy()
-    masked_c1[bool_diff] = 0
-    c1av = np.average(masked_c1[masked_c1 != 0])
-    backgroundout = np.average(c1_sec[masked_c1 == 0])
+    masked_ch = ch_sec.copy()
+    masked_ch[bool_diff] = 0
+    chav = np.average(masked_ch[masked_ch != 0])
+    backgroundout = np.average(ch_sec[masked_ch == 0])
     insidepix = [(y2 - y1) // 2, (x2 - x1) // 2]
     selem = disk(5)
-    c1blur = median(c1_sec, selem=selem)
-    backgroundin = c1blur[insidepix[0], insidepix[1]]
+    chblur = median(ch_sec, selem=selem)
+    backgroundin = chblur[insidepix[0], insidepix[1]]
     background = (backgroundout + backgroundin) / 2
 
     if detection:
@@ -540,10 +540,27 @@ def quantify(xywh, c1, lipid, f, img_sz, detection=False):
             pass
         try:
             xy = np.mgrid[0:x:1, 0:y:1].reshape(2, -1).T  # src: https://stackoverflow.com/questions/32208359/is-there-a-multi-dimensional-version-of-arange-linspace-in-numpy
-            c1av = np.average([c1_sec[y, x] for (x, y) in xy if inner_r < (x - c_x) ** 2 + (y - c_y) ** 2 < outer_r])
+            chav = np.average([ch_sec[y, x] for (x, y) in xy if inner_r < (x - c_x) ** 2 + (y - c_y) ** 2 < outer_r])
         except NameError:
             pass
-    return c1av - background
+    return chav - background
+
+def quantify_interior(xywh, ch, f, img_sz):
+    """Quantify the interior intensity of the given channel ch."""
+    x1, x2, y1, y2 = get_coord(xywh, img_sz)
+    if x1 == x2 or y1 == y2:
+        return 0
+    ch_sec = get_img_sec(ch, x1, x2, y1, y2, f)
+
+    c_x, c_y = int((x2 - x1) / 2), int((y2 - y1) / 2)
+    radius = min(x2 - x1, y2 - y1)
+    cutoff = (0.5 * radius)**2
+    circular_mask = np.zeros(ch_sec.shape)
+    for i in range(ch_sec.shape[0]):
+        for j in range(ch_sec.shape[1]):
+            if i**2 + j**2 < cutoff:
+                circular_mask[i, j] = 1
+    return np.mean(ch_sec, where=mask)
 
 def get_img_sec(img, x1, x2, y1, y2, f):
     """
@@ -563,6 +580,7 @@ class Guv:
     def __init__(self, first_xywh, initial_frame, folder, file_name, img_sz, model, num_bins, old_punctate, frame_punctate, puncta_pixel_threshold, pixel_threshold):
         self.xs, self.ys, self.ws, self.hs = [], [], [], []
         self.values = []
+        self.interior_values = []
         self.candidate = first_xywh
         self.init_f = initial_frame
         self.adj = False
@@ -609,6 +627,7 @@ class Guv:
         and update the position of this GUV."""
         if self.candidate is None:
             self.values.append(np.nan)  # TBD!!!!!
+            self.interior_values.append(np.nan)
             self.update_pos([np.nan] * 4)
             self.puncta_param.append(Puncta(0, [], []))
         else:
@@ -619,14 +638,16 @@ class Guv:
             self.puncta_param.append(get_maxima(get_img_sec(ch_mask, x1, x2, y1, y2, f), self.pixel_threshold))
             self.update_pos(self.candidate)
             self.values.append(quantify(self.candidate, ch, lipid, f, self.img_sz, False))
+            self.interior_values.append(quantify_interior(self.candidate, ch, f, self.img_sz))
             self.candidate = None
 
     def get_values(self):
         """return a list of lists, containing the recorded values of this GUV across frames, with a default value of np.nan."""
         value_empty = [np.nan for _ in range(self.init_f)]
+        interior_value_empty = [np.nan for _ in range(self.init_f)]
         position_empty = [np.nan for _ in range(self.init_f)]
         puncta_param_empty = [Puncta(0, [], []).to_dict() for _ in range(self.init_f)]
-        return [self.folder, self.file_name, self.img_sz, self.get_averaged_punctateness(), self.adj, self.init_f] + value_empty + self.values + puncta_param_empty + [puncta.to_dict() for puncta in self.puncta_param] + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
+        return [self.folder, self.file_name, self.img_sz, self.get_averaged_punctateness(), self.adj, self.init_f] + value_empty + self.values + interior_value_empty + self.interior_values + puncta_param_empty + [puncta.to_dict() for puncta in self.puncta_param] + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
 
     def get_averaged_punctateness(self):
         """NOT IN USE."""
@@ -649,18 +670,6 @@ class Guv:
         g1_bbox, g2_bbox = [g1_coord[0], g1_coord[2], g1_coord[1], g1_coord[3]], [g2_coord[0], g2_coord[2], g2_coord[1], g2_coord[3]]
         if check_overlap(g1_bbox, g2_bbox):
             guv1.adj, guv2.adj = True, True
-
-def check_overlap(bbox1, bbox2):
-    """Check if the two bounding boxes overlap."""
-    # If one rectangle is on left side of other            @src https://www.geeksforgeeks.org/find-two-rectangles-overlap/
-    if (bbox1[0] >= bbox2[2] or bbox2[0] >= bbox1[2]):
-        return False
-    # If one rectangle is above other
-    elif (bbox1[1] >= bbox2[3] or bbox2[1] >= bbox1[3]):
-        return False
-    else:
-        return True
-
 
 class Z_Stack_Guv(Guv):
     """
@@ -783,10 +792,10 @@ class Series:
 
     def get_col_names(self, ch):
         """Return the name of the fields for constructing the result DataFrame.
-        TODO: rewrite the return type pf GUV's get_values() to be a dictionary."""
+        TODO: rewrite the return type of GUV's get_values() to be a dictionary."""
         return ["folder", "file name", "image size", f"punctateness ch{ch}", "adjacent", "initial frame"] + [
-            f"value {i} ch{ch}" for i in range(self.num_frame)] + [f"puncta {i} ch{ch}" for i in range(self.num_frame)] + [f"x {i}" for i in range(self.num_frame)] + [
-                   f"y {i}" for i in range(self.num_frame)] + [f"w {i}" for i in range(self.num_frame)] + [f"h {i}" for i in range(self.num_frame)]
+            f"value {i} ch{ch}" for i in range(self.num_frame)] + [f"interior value {i} ch{ch}" for i in range(self.num_frame)] + [
+            f"puncta {i} ch{ch}" for i in range(self.num_frame)] + [f"x {i}" for i in range(self.num_frame)] + [f"y {i}" for i in range(self.num_frame)] + [f"w {i}" for i in range(self.num_frame)] + [f"h {i}" for i in range(self.num_frame)]
 
 class Z_Stack_Series(Series):
     """
@@ -863,6 +872,17 @@ class Puncta:
 
     def to_dict(self):
         return {"num_puncta": self.get_num_puncta(), "puncta_coords":self.get_puncta_coords(), "puncta_bboxes":self.get_puncta_bboxes()}
+
+def check_overlap(bbox1, bbox2):
+    """Check if the two bounding boxes overlap. Helper for check_adj."""
+    # If one rectangle is on left side of other            @src https://www.geeksforgeeks.org/find-two-rectangles-overlap/
+    if (bbox1[0] >= bbox2[2] or bbox2[0] >= bbox1[2]):
+        return False
+    # If one rectangle is above other
+    elif (bbox1[1] >= bbox2[3] or bbox2[1] >= bbox1[3]):
+        return False
+    else:
+        return True
 
 def get_maxima(img, pixel_threshold):
     """Use processed image to pick up puncta information.

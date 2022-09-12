@@ -44,13 +44,22 @@ def extract_summary(summary_df, result_df, channels_of_interest, index, frame_qu
 if __name__ == "__main__":
     #warnings.filterwarnings('ignore')
     parser = argparse.ArgumentParser(description='Process GUV punctateness.')
-    parser.add_argument("--file", metavar="Summary CSV", type=str, nargs=1, help="the path to a .csv file with at least three columns:\n1. channels of interest [int] 2. detect channel [int] 3. experiment folder [path].")
-    parser.add_argument("--label", metavar="Detail CSV label", type=str, nargs="+", help="the prefix labels for the result of the individual folders.")
-    parser.add_argument("--threshold", metavar="", type=int, nargs="+", help="the minimum number of pixels in a group to call puncta.")
+    parser.add_argument("--file", metavar="Summary CSV", type=str, nargs=1,
+                        help="the path to a .csv file with at least three columns: 1. channels of interest [int] "
+                             "2. detect channel [int] 3. experiment folder [path].")
+    parser.add_argument("--label", metavar="Detail CSV label", type=str, nargs="+",
+                        help="the prefix labels for the result of the individual folders.")
+    parser.add_argument("--detect-threshold", type=float, nargs="1",
+                        help="the minimum number of pixels in a group to call puncta.")
+    parser.add_argument("--puncta-threshold", type=int, nargs="+",
+                        help="the minimum number of pixels in a group to call puncta.")
     parser.add_argument("--detail", type=bool, const=True, default=False, nargs="?")
+    parser.add_argument("--zstack", metavar="Type of series", type=bool, const=True, default=False, nargs="?",
+                        help="Type of series for the images taken; flag if the input is Z-stack")
     args = vars(parser.parse_args())
     print("Arguments", args)
-    meta_summary_file, meta_labels, pixel_thresholds, detail, frame_quality, square_quality = args["file"][0], args["label"], args["threshold"], args["detail"], True, True
+    meta_summary_file, meta_labels, pixel_thresholds, detail, zstack, detect_threshold = args["file"][0], args["label"], args["puncta-threshold"], args["detail"], args["zstack"][0], args["detect-threshold"][0]
+    frame_quality, square_quality = True, True
     assert len(meta_labels) == len(pixel_thresholds)
     for i in range(len(pixel_thresholds)):
         meta_label, pixel_threshold = meta_labels[i], pixel_thresholds[i]
@@ -65,6 +74,6 @@ if __name__ == "__main__":
             # except:
             #     pass
             print(f"Starting on {exp_dir}")
-            cur_result_df = process_dir([exp_dir], channels_of_interest, detect_channel, meta_label, pixel_threshold, detail)
+            cur_result_df = process_dir([exp_dir], channels_of_interest, detect_channel, meta_label, detect_threshold, pixel_threshold, zstack, detail)
             extract_summary(summary_df, cur_result_df, channels_of_interest, index, frame_quality, square_quality)
             summary_df.to_csv(summary_file, index=False)

@@ -22,8 +22,7 @@ import subprocess
 import scipy.ndimage as ndimage
 # from scipy.optimize import curve_fit
 
-def process_dir(exp_dir, channels_of_interest, detect_channel, meta_label, pixel_threshold, detail):
-  detection_threshold = 0.6 # The threshold confidence to ignore GUVs that the GUV detection algorithm is less confident about
+def process_dir(exp_dir, channels_of_interest, detect_channel, meta_label, detect_threshold, pixel_threshold, zstack, detail):
   # folder_list = [".\\data\\01-11-22\\30_DOPS 69.5_ DOPC 0.5 _Atto\\200nM ALG2 A78C ESCRT1"]
   # label = f"combined_threshold_{pixel_threshold}_pixel_March_ALG2_on_05_26_22"
   folder_list = exp_dir
@@ -35,14 +34,17 @@ def process_dir(exp_dir, channels_of_interest, detect_channel, meta_label, pixel
   # channels_of_interest = [0, 1] # Enter your protein channels (zero-indexing); if more than 1 channel is entered, result will also include colocalization analysis
   # lipid_channel = 2 # Enter the lipid channel (zero_indexing) for GUV recognition purposes
   lipid_channel = detect_channel
-  series_type = Z_Stack_Series
   frame_quality = False
   verbose = True
+  if zstack:
+    series_type = Z_Stack_Series
+  else:
+    series_type = Series
 
   folder_list = [os.path.abspath(folder) for folder in folder_list]
   if not os.path.exists("results"):
       os.mkdir("results")
-  
+
   # Not in use
   old_punctate = False
   puncta_model_path = None                                                                                                # Designate your puncta model path here
@@ -68,7 +70,7 @@ def process_dir(exp_dir, channels_of_interest, detect_channel, meta_label, pixel
      shutil.rmtree("yolov5/runs", ignore_errors=False)
   # Detect GUV using yolov5
   for path in path_list:
-    identify_img(path, yolo_model_path, detection_threshold)
+    identify_img(path, yolo_model_path, detect_threshold)
 
   # Analyze all GUVs
   result = None
@@ -95,20 +97,39 @@ def process_dir(exp_dir, channels_of_interest, detect_channel, meta_label, pixel
   return result
 
 if __name__ == "__main__":
-  pixel_thresholds = [10, 15, 20]
-  meta_labels = [f"combined_threshold_March_{pixel_threshold}_pixel" for pixel_threshold in pixel_thresholds]
-  for pixel_threshold, meta_label in iter(zip(pixel_thresholds, meta_labels)):
-    print("Start on thresh: " + str(pixel_threshold) + " and label: " + str(meta_label))
-    exp_dir = ["data/03-03-2022/89.5_ DOPC_10_DOPS_0.5_ Atto/200 nM Atto 488 ALG2", "data/03-02-2022/69.5_ DOPC_30_ DOPS_0.5_ Atto 647/200 nM Atto 488 ALG-2", "data/03-02-2022/49.5_ DOPC_50_ DOPS_0.5_ Atto 647/200 nM Atto 488 ALG-2"]
-    # exp_dir = ["data/11-27-2021/DOPC_DOPS_10__Atto/200 nM ALG2", "data/11-27-2021/DOPC_DOPS_30__Atto/200 nM ALG2", "data/11-27-2021/DOPC_DOPS_50__Atto"]
-    # exp_dir = ["data/01-11-2022/10_DOPS 89.5_DOPC 0.5_Atto/200nM ALG2", "data/01-11-2022/30_DOPS 69.5_ DOPC 0.5 _Atto/200nM ALG2 A78C", "data/01-11-2022/50_DOPS 49.5_ DOPC 0.5_Atto/200nM ALG2"]
-    channels_of_interest, detect_channel, meta_label, pixel_threshold, detail = [0, 1], 2, meta_label, pixel_threshold, True
-    process_dir(exp_dir, channels_of_interest, detect_channel, meta_label, pixel_threshold, detail)
-
-"""Code used for incoporating the grouped run"""
-# for dir in exp_dir:
-#   cur_result_df = df[df["folder"].str.contains(dir)]
-#   print(cur_result_df.shape)
-#   print((summary_df[summary_df["experiment folder"] == dir]).index[0])
-#   extract_summary(summary_df, cur_result_df, [0, 1], (summary_df[summary_df["experiment folder"] == dir]).index[0], True, True)
-#   summary_df.to_csv("Sankalp Data Summary.csv", index=False)
+  parser = argparse.ArgumentParser(description='Process GUV punctateness.')
+  parser.add_argument("--file", metavar="Summary CSV", type=str, nargs=1,
+                      help="the path to a .csv file with at least three columns: 1. channels of interest [int] "
+                           "2. detect channel [int] 3. experiment folder [path].")
+  parser.add_argument("--label", metavar="Detail CSV label", type=str, nargs="+",
+                      help="the prefix labels for the result of the individual folders.")
+  parser.add_argument("--detect-threshold", type=float, nargs="1",
+                      help="the minimum number of pixels in a group to call puncta.")
+  parser.add_argument("--detail", type=bool, const=True, default=False, nargs="?")
+  parser.add_argument("--zstack", metavar="Type of series", type=bool, const=True, default=False, nargs="?",
+                      help="Type of series for the images taken; flag if the input is Z-stack")
+  args = vars(parser.parse_args())
+  print("Arguments", args)
+  meta_summary_file, meta_labels, pixel_thresholds, detail, zstack = args["file"][0], args["label"], args["threshold"], \
+                                                                     args["detail"], args["zstack"][0]
+  frame_quality, square_quality = True, True
+  assert len(meta_labels) == len(pixel_thresholds)
+  for i in range(len(pixel_thresholds)):
+    meta_label, pixel_threshold = meta_labels[i], pixel_thresholds[i]
+    summary_file = f"{meta_label}_{meta_summary_file}"
+    summary_df = pd.read_csv(summary_file, index_col=False) if os.path.exists(summary_file) else pd.read_csv(
+      meta_summary_file, index_col=False)
+    print(f"Starting on {summary_file}")
+    for index, experiment_row in summary_df.iterrows():
+      exp_dir, channels_of_interest, detect_channel = experiment_row["experiment folder"], list(
+        range(int(experiment_row["channels of interest"]))), int(experiment_row["detect channel"])
+      # try:
+      #     if not np.isnan(summary_df.loc[index, "number of GUV"]):
+      #         continue
+      # except:
+      #     pass
+      print(f"Starting on {exp_dir}")
+      cur_result_df = process_dir([exp_dir], channels_of_interest, detect_channel, meta_label, pixel_threshold, zstack,
+                                  detail)
+      extract_summary(summary_df, cur_result_df, channels_of_interest, index, frame_quality, square_quality)
+      summary_df.to_csv(summary_file, index=False)
