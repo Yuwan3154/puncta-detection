@@ -21,6 +21,7 @@ import subprocess
 # from sklearn.decomposition import PCA
 import scipy.ndimage as ndimage
 # from scipy.optimize import curve_fit
+import argparse
 
 def process_dir(exp_dir, channels_of_interest, detect_channel, meta_label, detect_threshold, pixel_threshold, zstack, detail):
   # folder_list = [".\\data\\01-11-22\\30_DOPS 69.5_ DOPC 0.5 _Atto\\200nM ALG2 A78C ESCRT1"]
@@ -98,38 +99,24 @@ def process_dir(exp_dir, channels_of_interest, detect_channel, meta_label, detec
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description='Process GUV punctateness.')
-  parser.add_argument("--file", metavar="Summary CSV", type=str, nargs=1,
-                      help="the path to a .csv file with at least three columns: 1. channels of interest [int] "
-                           "2. detect channel [int] 3. experiment folder [path].")
-  parser.add_argument("--label", metavar="Detail CSV label", type=str, nargs="+",
+  parser.add_argument("--folder", metavar="Data folder", type=str, nargs=1,
+                      help="the data folder containing .nd2 files and its output")
+  parser.add_argument("--label", metavar="Detail CSV label", type=str, nargs=1,
                       help="the prefix labels for the result of the individual folders.")
-  parser.add_argument("--detect-threshold", type=float, nargs="1",
+  parser.add_argument("--detect-threshold", metavar="GUV Detection Threshold", type=float, nargs=1,
                       help="the minimum number of pixels in a group to call puncta.")
-  parser.add_argument("--detail", type=bool, const=True, default=False, nargs="?")
-  parser.add_argument("--zstack", metavar="Type of series", type=bool, const=True, default=False, nargs="?",
+  parser.add_argument("--detail", metavar="Verbose", type=bool, const=True, default=False, nargs="?")
+  parser.add_argument("--zstack", metavar="Type of Series", type=bool, const=True, default=False, nargs="?",
                       help="Type of series for the images taken; flag if the input is Z-stack")
   args = vars(parser.parse_args())
   print("Arguments", args)
-  meta_summary_file, meta_labels, pixel_thresholds, detail, zstack = args["file"][0], args["label"], args["threshold"], \
-                                                                     args["detail"], args["zstack"][0]
+  folder, meta_label, detect_threshold, detail, zstack = args["file"][0], args["label"], args["detect_threshold"][0], args["detail"], args["zstack"]
   frame_quality, square_quality = True, True
-  assert len(meta_labels) == len(pixel_thresholds)
+  pixel_thresholds = [100] # TODO: temporary solution
   for i in range(len(pixel_thresholds)):
-    meta_label, pixel_threshold = meta_labels[i], pixel_thresholds[i]
-    summary_file = f"{meta_label}_{meta_summary_file}"
-    summary_df = pd.read_csv(summary_file, index_col=False) if os.path.exists(summary_file) else pd.read_csv(
-      meta_summary_file, index_col=False)
+    summary_file = os.path.sep.join("result", f"{meta_label}_{folder.replace(os.path.sep, '_')}")
     print(f"Starting on {summary_file}")
-    for index, experiment_row in summary_df.iterrows():
-      exp_dir, channels_of_interest, detect_channel = experiment_row["experiment folder"], list(
-        range(int(experiment_row["channels of interest"]))), int(experiment_row["detect channel"])
-      # try:
-      #     if not np.isnan(summary_df.loc[index, "number of GUV"]):
-      #         continue
-      # except:
-      #     pass
-      print(f"Starting on {exp_dir}")
-      cur_result_df = process_dir([exp_dir], channels_of_interest, detect_channel, meta_label, pixel_threshold, zstack,
-                                  detail)
-      extract_summary(summary_df, cur_result_df, channels_of_interest, index, frame_quality, square_quality)
-      summary_df.to_csv(summary_file, index=False)
+    cur_result_df = process_dir([exp_dir], channels_of_interest, detect_channel, meta_label, pixel_threshold, zstack,
+                                detail)
+    extract_summary(summary_df, cur_result_df, channels_of_interest, index, frame_quality, square_quality)
+    summary_df.to_csv(summary_file, index=False)

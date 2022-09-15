@@ -49,7 +49,7 @@ if __name__ == "__main__":
                              "2. detect channel [int] 3. experiment folder [path].")
     parser.add_argument("--label", metavar="Detail CSV label", type=str, nargs="+",
                         help="the prefix labels for the result of the individual folders.")
-    parser.add_argument("--detect-threshold", type=float, nargs="1",
+    parser.add_argument("--detect-threshold", type=float, nargs=1,
                         help="the minimum number of pixels in a group to call puncta.")
     parser.add_argument("--puncta-threshold", type=int, nargs="+",
                         help="the minimum number of pixels in a group to call puncta.")
@@ -58,7 +58,7 @@ if __name__ == "__main__":
                         help="Type of series for the images taken; flag if the input is Z-stack")
     args = vars(parser.parse_args())
     print("Arguments", args)
-    meta_summary_file, meta_labels, pixel_thresholds, detail, zstack, detect_threshold = args["file"][0], args["label"], args["puncta-threshold"], args["detail"], args["zstack"][0], args["detect-threshold"][0]
+    meta_summary_file, meta_labels, pixel_thresholds, detail, zstack, detect_threshold = args["file"][0], args["label"], args["puncta_threshold"], args["detail"], args["zstack"], args["detect_threshold"][0]
     frame_quality, square_quality = True, True
     assert len(meta_labels) == len(pixel_thresholds)
     for i in range(len(pixel_thresholds)):

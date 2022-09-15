@@ -132,11 +132,11 @@ def process_data(imfolder, folder_index_count, result, num_bins, channels_of_int
             signal_df_lst.append(signal_df)
 
         # deals with when multiple channels of interest are present
-        final_df = signal_df_lst[0].sort_values(by="x 0").reset_index(drop=True)
+        final_df = signal_df_lst[0].sort_values(by="x " + f"{0:03}").reset_index(drop=True)
         final_df = final_df.astype({"num frame": int})
         if len(channels_of_interest) > 1:
             for cur_df in signal_df_lst[1:]:
-                cur_df = cur_df.sort_values(by="x 0").reset_index(drop=True)
+                cur_df = cur_df.sort_values(by="x " + f"{0:03}").reset_index(drop=True)
                 cols_to_use = cur_df.columns.difference(final_df.columns).to_list()  # https://stackoverflow.com/questions/19125091/pandas-merge-how-to-avoid-duplicating-columns
                 final_df = pd.DataFrame.merge(final_df, cur_df[cols_to_use], left_index=True, right_index=True, how='outer')
             final_df = colocalization(final_df, channels_of_interest)
@@ -189,7 +189,7 @@ def manual_process_data(manual_label_df_file_path, channels_of_interest, upstrea
     manual_puncta_cols = []
     max_frame = max(manual_label_df["num frame"])
     for ch in channels_of_interest:
-        manual_puncta_cols.extend([f"puncta {j} ch{ch}" for j in range(max_frame)])
+        manual_puncta_cols.extend([f"puncta {j:03} ch{ch}" for j in range(max_frame)])
     manual_label_df[manual_puncta_cols] = None
     column_dict = dict()
     for col in manual_puncta_cols:
@@ -214,7 +214,7 @@ def manual_process_data(manual_label_df_file_path, channels_of_interest, upstrea
                         cur_puncta = get_maxima(get_img_sec(cur_ch_img, x1, x2, y1, y2, None), pixel_threshold)
                     except ValueError:
                         cur_puncta = Puncta(0, [], [])
-                    manual_label_df.at[row, f"puncta {j} ch{ch}"] = cur_puncta
+                    manual_label_df.at[row, f"puncta {j:03} ch{ch}"] = cur_puncta
                     if cur_puncta.get_num_puncta() > cur_puncta_nums[i]:
                         cur_df_puncta_frames[i], cur_puncta_nums[i] = j, cur_puncta.get_num_puncta()
                     i += 1
@@ -414,11 +414,11 @@ def export_index(i):
     """
     assert type(i) == int
     if i < 10:
-        return "000" + str(i)
+        return "00" + f"{0:03}" + str(i)
     elif i < 100:
-        return "00" + str(i)
+        return "0" + f"{0:03}" + str(i)
     elif i < 1000:
-        return "0" + str(i)
+        return "" + f"{0:03}" + str(i)
     else:
         return str(i)
 
@@ -441,7 +441,7 @@ def square_quality(df):
     quality_result = []
     for i in range(len(df)):
         init_frame = df["initial frame"][i]
-        quality_result.append(similar_width_height(df[f"w {init_frame}"][i], df[f"h {init_frame}"][i]))
+        quality_result.append(similar_width_height(df[f"w {init_frame:03}"][i], df[f"h {init_frame:03}"][i]))
     df["square quality"] = quality_result
     return df
 
@@ -457,7 +457,7 @@ def channel_quality(df, channels_of_interest):
         for num_frame in df["num frame"].unique():
             cur_df = df[df["num frame"] == num_frame]
             cur_idx = cur_df.index
-            temp = np.sum(np.array(cur_df[[f"value {i} ch{channel_of_interest}" for i in range(num_frame)]].isnull()), axis=1)
+            temp = np.sum(np.array(cur_df[[f"value {i:03} ch{channel_of_interest}" for i in range(num_frame)]].isnull()), axis=1)
             # df.loc[cur_idx, f"quality ch{channel_of_interest}"] = np.array(temp / num_frame <= (1 - 6 / num_frame))
             df.loc[cur_idx, f"quality ch{channel_of_interest}"] = np.logical_or(temp / num_frame <= (1 - 6 / num_frame), num_frame < 6)
     return df
@@ -556,11 +556,12 @@ def quantify_interior(xywh, ch, f, img_sz):
     radius = min(x2 - x1, y2 - y1)
     cutoff = (0.5 * radius)**2
     circular_mask = np.zeros(ch_sec.shape)
-    for i in range(ch_sec.shape[0]):
-        for j in range(ch_sec.shape[1]):
-            if i**2 + j**2 < cutoff:
-                circular_mask[i, j] = 1
-    return np.mean(ch_sec, where=mask)
+    for j in range(ch_sec.shape[0]):
+        for i in range(ch_sec.shape[1]):
+            if ((j - c_y)**2 + (i - c_x)**2) < cutoff:
+                circular_mask[j, i] = 1
+    circular_mask = circular_mask.astype(bool)
+    return np.mean(ch_sec, where=circular_mask)
 
 def get_img_sec(img, x1, x2, y1, y2, f):
     """
@@ -646,8 +647,8 @@ class Guv:
         value_empty = [np.nan for _ in range(self.init_f)]
         interior_value_empty = [np.nan for _ in range(self.init_f)]
         position_empty = [np.nan for _ in range(self.init_f)]
-        puncta_param_empty = [Puncta(0, [], []).to_dict() for _ in range(self.init_f)]
-        return [self.folder, self.file_name, self.img_sz, self.get_averaged_punctateness(), self.adj, self.init_f] + value_empty + self.values + interior_value_empty + self.interior_values + puncta_param_empty + [puncta.to_dict() for puncta in self.puncta_param] + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
+        puncta_param_empty = [Puncta(0, [], []) for _ in range(self.init_f)]
+        return [self.folder, self.file_name, self.img_sz, self.get_averaged_punctateness(), self.adj, self.init_f] + value_empty + self.values + interior_value_empty + self.interior_values + puncta_param_empty + [puncta for puncta in self.puncta_param] + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
 
     def get_averaged_punctateness(self):
         """NOT IN USE."""
@@ -708,8 +709,8 @@ class Z_Stack_Guv(Guv):
     def get_values(self):
         value_empty = [np.nan for _ in range(self.init_f)]
         position_empty = [np.nan for _ in range(self.init_f)]
-        puncta_param_empty = [Puncta(0, [], []).to_dict() for _ in range(self.init_f)]
-        return [self.folder, self.file_name, self.img_sz, self.get_averaged_punctateness(), self.adj, self.init_f,self.equa_frame, self.equa_size] + value_empty + self.values + puncta_param_empty + [puncta.to_dict() for puncta in self.puncta_param] + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
+        puncta_param_empty = [Puncta(0, [], []) for _ in range(self.init_f)]
+        return [self.folder, self.file_name, self.img_sz, self.get_averaged_punctateness(), self.adj, self.init_f,self.equa_frame, self.equa_size] + value_empty + self.values + puncta_param_empty + [puncta for puncta in self.puncta_param] + position_empty + self.xs + position_empty + self.ys + position_empty + self.ws + position_empty + self.hs
 
 class Series:
     """A class storing the GUVs from the same series."""
@@ -766,7 +767,7 @@ class Series:
                 if best_match is None:
                     cur_add_lst.append(
                         Guv(xywh, self.frame, self.folder, self.file_name, self.img_sz, self.model, self.num_bins,
-                            self.old_punctate, self.puncta_pixel_threshold, self.pixel_threshold))
+                            self.old_punctate, self.frame_punctate, self.puncta_pixel_threshold, self.pixel_threshold))
                 elif cur_match_dic.get(best_match, None) is None:
                     cur_match_dic[best_match] = xywh
                     cur_score += best_match.distance_to_coord(xywh)
@@ -794,8 +795,8 @@ class Series:
         """Return the name of the fields for constructing the result DataFrame.
         TODO: rewrite the return type of GUV's get_values() to be a dictionary."""
         return ["folder", "file name", "image size", f"punctateness ch{ch}", "adjacent", "initial frame"] + [
-            f"value {i} ch{ch}" for i in range(self.num_frame)] + [f"interior value {i} ch{ch}" for i in range(self.num_frame)] + [
-            f"puncta {i} ch{ch}" for i in range(self.num_frame)] + [f"x {i}" for i in range(self.num_frame)] + [f"y {i}" for i in range(self.num_frame)] + [f"w {i}" for i in range(self.num_frame)] + [f"h {i}" for i in range(self.num_frame)]
+            f"value {i:03} ch{ch}" for i in range(self.num_frame)] + [f"interior value {i:03} ch{ch}" for i in range(self.num_frame)] + [
+            f"puncta {i:03} ch{ch}" for i in range(self.num_frame)] + [f"x {i:03}" for i in range(self.num_frame)] + [f"y {i:03}" for i in range(self.num_frame)] + [f"w {i:03}" for i in range(self.num_frame)] + [f"h {i:03}" for i in range(self.num_frame)]
 
 class Z_Stack_Series(Series):
     """
@@ -847,9 +848,9 @@ class Z_Stack_Series(Series):
 
     def get_col_names(self, ch):
         return ["folder", "file name", "image size", f"punctateness ch{ch}", "adjacent", "initial frame",
-                "equatorial frame", "equatorial size"] + [f"value {i} ch{ch}" for i in range(self.num_frame)] + [
-                   f"puncta {i} ch{ch}" for i in range(self.num_frame)] + [f"x {i}" for i in range(self.num_frame)] + [
-                   f"y {i}" for i in range(self.num_frame)] + [f"w {i}" for i in range(self.num_frame)] + [f"h {i}" for i in range(self.num_frame)]
+                "equatorial frame", "equatorial size"] + [f"value {i:03} ch{ch}" for i in range(self.num_frame)] + [
+                   f"puncta {i:03} ch{ch}" for i in range(self.num_frame)] + [f"x {i:03}" for i in range(self.num_frame)] + [
+                   f"y {i:03}" for i in range(self.num_frame)] + [f"w {i:03}" for i in range(self.num_frame)] + [f"h {i:03}" for i in range(self.num_frame)]
 
 class Puncta:
     """
@@ -942,7 +943,7 @@ def new_punctate(df, ch):
         cur_punctate = False
         cur_GUV = df.iloc[i]
         for j in range(cur_GUV["num frame"]):
-            if cur_GUV[f"puncta {j} ch{ch}"].get_num_puncta() > 0:
+            if cur_GUV[f"puncta {j:03} ch{ch}"].get_num_puncta() > 0:
                 cur_punctate = True
                 break
         result.append(cur_punctate)
@@ -952,7 +953,7 @@ def new_punctate(df, ch):
 #     for i in range(len(df)):
 #         cur_num_punctate = 0
 #         for j in range(df.iloc[i]["num frame"]):
-#             if df.iloc[i][f"puncta {j} ch{ch}"][0] > 0:
+#             if df.iloc[i][f"puncta {j:03} ch{ch}"][0] > 0:
 #                 cur_num_punctate += 1
 #         result.append(cur_num_punctate)
 #     result = np.array(result)
@@ -978,10 +979,10 @@ def colocalization(df, chs):
             coloc, total = 0, 0
             cur_GUV = df.iloc[i]
             for j in range(int(cur_GUV["num frame"])):
-                ch1_puncta_coords, ch2_puncta_coords = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords()
-                ch1_puncta_bboxes, ch2_puncta_bboxes = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_bboxes(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_bboxes()
+                ch1_puncta_coords, ch2_puncta_coords = cur_GUV[f"puncta {j:03} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j:03} ch{ch2}"].get_puncta_coords()
+                ch1_puncta_bboxes, ch2_puncta_bboxes = cur_GUV[f"puncta {j:03} ch{ch1}"].get_puncta_bboxes(), cur_GUV[f"puncta {j:03} ch{ch2}"].get_puncta_bboxes()
                 total += max(len(ch1_puncta_coords), len(ch2_puncta_coords))
-                threshold = 5 # max(cur_GUV[f"w {j}"], cur_GUV[f"h {j}"]) * img_sz / 4
+                threshold = 5 # max(cur_GUV[f"w {j:03}"], cur_GUV[f"h {j:03}"]) * img_sz / 4
                 if len(ch1_puncta_coords) > len(ch2_puncta_coords):
                     ch1_puncta_coords, ch2_puncta_coords = ch2_puncta_coords, ch1_puncta_coords
                     ch1_puncta_bboxes, ch2_puncta_bboxes = ch2_puncta_bboxes, ch1_puncta_bboxes
@@ -1008,10 +1009,10 @@ def colocalization(df, chs):
                 coloc, total = 0, 0
                 cur_GUV = df.iloc[i]
                 for j in range(int(cur_GUV["num frame"])):
-                    ch1_puncta_coords, ch2_puncta_coords, ch3_puncta_coords = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch3}"].get_puncta_coords()
-                    ch1_puncta_bboxes, ch2_puncta_bboxes, ch3_puncta_bboxes = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_bboxes(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_bboxes(), cur_GUV[f"puncta {j} ch{ch3}"].get_puncta_bboxes()
+                    ch1_puncta_coords, ch2_puncta_coords, ch3_puncta_coords = cur_GUV[f"puncta {j:03} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j:03} ch{ch2}"].get_puncta_coords(), cur_GUV[f"puncta {j:03} ch{ch3}"].get_puncta_coords()
+                    ch1_puncta_bboxes, ch2_puncta_bboxes, ch3_puncta_bboxes = cur_GUV[f"puncta {j:03} ch{ch1}"].get_puncta_bboxes(), cur_GUV[f"puncta {j:03} ch{ch2}"].get_puncta_bboxes(), cur_GUV[f"puncta {j:03} ch{ch3}"].get_puncta_bboxes()
                     total += max(len(ch1_puncta_coords), len(ch2_puncta_coords), len(ch3_puncta_coords))
-                    threshold = 5 # max(cur_GUV[f"w {j}"], cur_GUV[f"h {j}"]) * img_sz / 4
+                    threshold = 5 # max(cur_GUV[f"w {j:03}"], cur_GUV[f"h {j:03}"]) * img_sz / 4
                     if len(ch1_puncta_coords) > len(ch3_puncta_coords) or len(ch2_puncta_coords) > len(ch3_puncta_coords):
                         if len(ch1_puncta_coords) > len(ch2_puncta_coords):
                             ch1_puncta_coords, ch3_puncta_coords = ch3_puncta_coords, ch1_puncta_coords
@@ -1106,8 +1107,8 @@ def manual_colocalization(df, chs, upstream_channel):
         for i in range(len(df)):
             cur_GUV = df.iloc[i]
             for j in range(cur_GUV["num frame"]):
-                ch1_puncta_coords, ch2_puncta_coords = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords()
-                ch1_puncta_bboxes, ch2_puncta_bboxes = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_bboxes(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_bboxes()
+                ch1_puncta_coords, ch2_puncta_coords = cur_GUV[f"puncta {j:03} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j:03} ch{ch2}"].get_puncta_coords()
+                ch1_puncta_bboxes, ch2_puncta_bboxes = cur_GUV[f"puncta {j:03} ch{ch1}"].get_puncta_bboxes(), cur_GUV[f"puncta {j:03} ch{ch2}"].get_puncta_bboxes()
                 # x1, x2, y1, y2 = manual_label_position(cur_GUV)
                 # threshold = 5 # max(x2 - x1, y2 - y1) / 4
                 total[i] += max(len(ch1_puncta_coords), len(ch2_puncta_coords))
@@ -1136,8 +1137,8 @@ def manual_colocalization(df, chs, upstream_channel):
             for i in range(len(df)):
                 cur_GUV = df.iloc[i]
                 for j in range(cur_GUV["num frame"]):
-                    ch1_puncta_coords, ch2_puncta_coords, ch3_puncta_coords = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_coords(), cur_GUV[f"puncta {j} ch{ch3}"].get_puncta_coords()
-                    ch1_puncta_bboxes, ch2_puncta_bboxes, ch3_puncta_bboxes = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_bboxes(), cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_bboxes(), cur_GUV[f"puncta {j} ch{ch3}"].get_puncta_bboxes()
+                    ch1_puncta_coords, ch2_puncta_coords, ch3_puncta_coords = cur_GUV[f"puncta {j:03} ch{ch1}"].get_puncta_coords(), cur_GUV[f"puncta {j:03} ch{ch2}"].get_puncta_coords(), cur_GUV[f"puncta {j:03} ch{ch3}"].get_puncta_coords()
+                    ch1_puncta_bboxes, ch2_puncta_bboxes, ch3_puncta_bboxes = cur_GUV[f"puncta {j:03} ch{ch1}"].get_puncta_bboxes(), cur_GUV[f"puncta {j:03} ch{ch2}"].get_puncta_bboxes(), cur_GUV[f"puncta {j:03} ch{ch3}"].get_puncta_bboxes()
                     chs_puncta_coords_dict = dict(list(zip([ch1, ch2, ch3], [ch1_puncta_coords, ch2_puncta_coords, ch3_puncta_coords])))
                     chs_puncta_bboxes_dict = dict(list(zip([ch1, ch2, ch3], [ch1_puncta_bboxes, ch2_puncta_bboxes, ch3_puncta_bboxes])))
                     total[i] += len(chs_puncta_coords_dict[upstream_channel])
@@ -1193,10 +1194,10 @@ def new_colocalization(df, im, chs, puncta_pixel_threshold):
                         for i in range(len(cur_df)):
                             cur_GUV = cur_df.iloc[i]
                             try:
-                                x1, x2, y1, y2 = get_coord([cur_GUV[f"x {j}"], cur_GUV[f"y {j}"], cur_GUV[f"w {j}"], cur_GUV[f"h {j}"]], img_sz=img_sz)
+                                x1, x2, y1, y2 = get_coord([cur_GUV[f"x {j:03}"], cur_GUV[f"y {j:03}"], cur_GUV[f"w {j:03}"], cur_GUV[f"h {j:03}"]], img_sz=img_sz)
                                 cur_GUV_img = coloc_img[y1:y2, x1:x2]
-                                base_ch = ch1 if cur_GUV[f"puncta {j} ch{ch1}"].get_num_puncta() > cur_GUV[f"puncta {j} ch{ch2}"].get_num_puncta() else ch2
-                                for bbox in cur_GUV[f"puncta {j} ch{base_ch}"].get_puncta_bboxes():
+                                base_ch = ch1 if cur_GUV[f"puncta {j:03} ch{ch1}"].get_num_puncta() > cur_GUV[f"puncta {j:03} ch{ch2}"].get_num_puncta() else ch2
+                                for bbox in cur_GUV[f"puncta {j:03} ch{base_ch}"].get_puncta_bboxes():
                                     b_y1, b_x1, b_y2, b_x2 = bbox
                                     labels = measure.label(cur_GUV_img[b_y1:b_y2+1, b_x1:b_x2+1])
                                     for label_property in measure.regionprops(labels):
@@ -1264,12 +1265,12 @@ def new_manual_colocalization(df, chs, upstream_channel, puncta_pixel_threshold)
                     x1, x2, y1, y2 = manual_label_position(cur_GUV)
                     cur_GUV_img = coloc_img[y1:y2, x1:x2]
                     if ch1 != upstream_channel and ch2 != upstream_channel:
-                        if cur_GUV[f"puncta {j} ch{ch1}"].get_num_puncta() > cur_GUV[f"puncta {j} ch{ch2}"].get_num_puncta():
-                            cur_bbox = cur_GUV[f"puncta {j} ch{ch1}"].get_puncta_bboxes()
+                        if cur_GUV[f"puncta {j:03} ch{ch1}"].get_num_puncta() > cur_GUV[f"puncta {j:03} ch{ch2}"].get_num_puncta():
+                            cur_bbox = cur_GUV[f"puncta {j:03} ch{ch1}"].get_puncta_bboxes()
                         else:
-                            cur_bbox = cur_GUV[f"puncta {j} ch{ch2}"].get_puncta_bboxes()
+                            cur_bbox = cur_GUV[f"puncta {j:03} ch{ch2}"].get_puncta_bboxes()
                     else:
-                        cur_bbox = cur_GUV[f"puncta {j} ch{upstream_channel}"].get_puncta_bboxes()
+                        cur_bbox = cur_GUV[f"puncta {j:03} ch{upstream_channel}"].get_puncta_bboxes()
                     for bbox in cur_bbox:
                         b_y1, b_x1, b_y2, b_x2 = bbox
                         labels = measure.label(cur_GUV_img[b_y1:b_y2, b_x1:b_x2])
@@ -1297,7 +1298,7 @@ def new_manual_colocalization(df, chs, upstream_channel, puncta_pixel_threshold)
                         cur_GUV = cur_df.iloc[i]
                         x1, x2, y1, y2 = manual_label_position(cur_GUV)
                         cur_GUV_img = coloc_img[y1:y2, x1:x2]
-                        for bbox in cur_GUV[f"puncta {j} ch{upstream_channel}"].get_puncta_bboxes():
+                        for bbox in cur_GUV[f"puncta {j:03} ch{upstream_channel}"].get_puncta_bboxes():
                             b_y1, b_x1, b_y2, b_x2 = bbox
                             labels = measure.label(cur_GUV_img[b_y1:b_y2, b_x1:b_x2])
                             for label_property in measure.regionprops(labels):
