@@ -26,7 +26,7 @@ def process_data(imfolder, result, folder_index_count, lipid_ch, verbose):
         if len(im.shape) == 4:
             pass
         elif len(im.shape) == 3:
-            im = np.array(im).reshape(1, im.shape[0], im.shape[1])
+            im = np.array(im).reshape(1, im.shape[0], im.shape[1], im.shape[2])
         else:
             raise ValueError("Input image should have 3 or 4 channels.")
         label_folder = os.path.sep.join(["yolov5", "runs", "detect", "exp{}".format(folder_index(folder_index_count))])

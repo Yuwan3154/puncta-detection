@@ -50,7 +50,7 @@ if __name__ == "__main__":
     parser.add_argument("--label", metavar="Detail CSV label", type=str, nargs="+",
                         help="the prefix labels for the result of the individual folders.")
     parser.add_argument("--detect-threshold", type=float, nargs=1,
-                        help="the minimum number of pixels in a group to call puncta.")
+                        help="the confidence level cutoff for GUV segmentation.")
     parser.add_argument("--puncta-threshold", type=int, nargs="+",
                         help="the minimum number of pixels in a group to call puncta.")
     parser.add_argument("--detail", type=bool, const=True, default=False, nargs="?")
