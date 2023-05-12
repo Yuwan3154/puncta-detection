@@ -63,7 +63,9 @@ if __name__ == "__main__":
     assert len(meta_labels) == len(pixel_thresholds)
     for i in range(len(pixel_thresholds)):
         meta_label, pixel_threshold = meta_labels[i], pixel_thresholds[i]
-        summary_file = f"{meta_label}_{meta_summary_file}"
+        summary_file = str.split(meta_summary_file, sep=os.path.sep)
+        summary_file[-1] = f"{meta_label}_{summary_file[-1]}"
+        summary_file = os.path.sep.join(summary_file)
         summary_df = pd.read_csv(summary_file, index_col=False) if os.path.exists(summary_file) else pd.read_csv(meta_summary_file, index_col=False)
         print(f"Starting on {summary_file}")
         for index, experiment_row in summary_df.iterrows():

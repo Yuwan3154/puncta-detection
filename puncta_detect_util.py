@@ -1080,6 +1080,7 @@ def preprocess_for_puncta(img, background):
         img = img > 1.1 * threshold_otsu(img)
         return img
     except RuntimeError:
+        print("Unexpected exception during image format conversion!")
         return np.zeros_like(img)
 
 # Manual Colocalization
@@ -1234,6 +1235,7 @@ def preprocess_for_coloc(img, background):
         img = img > 1.1 * threshold_otsu(img)
         return img
     except RuntimeError:
+        print("Unexpected exception during image format conversion!")
         return np.zeros_like(img)
 
 def new_manual_colocalization(df, chs, upstream_channel, puncta_pixel_threshold):
@@ -1336,6 +1338,7 @@ def dataset_threshold(path_list, channels_of_interest):
     try:
         return np.clip(2.5 * threshold_li(all_picture), 4000, 10000)
     except RuntimeError:
+        print("Unexpected exception during folder thresholding!")
         return None
 
 def manual_dataset_threshold(manual_label_file_path_list, channels_of_interest):
@@ -1362,4 +1365,5 @@ def manual_dataset_threshold(manual_label_file_path_list, channels_of_interest):
     try:
         return np.clip(2.5 * threshold_li(all_picture), 4000, 10000)
     except RuntimeError:
+        print("Unexpected exception during folder thresholding!")
         return None
