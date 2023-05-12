@@ -67,6 +67,9 @@ if __name__ == "__main__":
         summary_df = pd.read_csv(summary_file, index_col=False) if os.path.exists(summary_file) else pd.read_csv(meta_summary_file, index_col=False)
         print(f"Starting on {summary_file}")
         for index, experiment_row in summary_df.iterrows():
+            if pd.DataFrame.isna(experiment_row)["experiment folder"]:
+                continue
+            experiment_row.fillna(0, inplace=True)
             exp_dir, channels_of_interest, detect_channel = experiment_row["experiment folder"], list(range(int(experiment_row["channels of interest"]))), int(experiment_row["detect channel"])
             # try:
             #     if not np.isnan(summary_df.loc[index, "number of GUV"]):
