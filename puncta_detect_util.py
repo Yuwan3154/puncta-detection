@@ -1336,7 +1336,7 @@ def dataset_threshold(path_list, channels_of_interest):
             else:
                 all_picture = np.concatenate((all_picture, chs_img), axis=0)
     try:
-        return np.clip(2.5 * threshold_li(all_picture), 4000, 10000)
+        return np.clip(2.5 * threshold_li(all_picture), 3000, 10000)
     except RuntimeError:
         print("Unexpected exception during folder thresholding!")
         return None
@@ -1363,7 +1363,7 @@ def manual_dataset_threshold(manual_label_file_path_list, channels_of_interest):
             else:
                 all_picture = np.concatenate((all_picture, chs_img), axis=0)
     try:
-        return np.clip(2.5 * threshold_li(all_picture), 4000, 10000)
+        return np.clip(2.5 * threshold_li(all_picture), 3000, 10000)
     except RuntimeError:
         print("Unexpected exception during folder thresholding!")
         return None
